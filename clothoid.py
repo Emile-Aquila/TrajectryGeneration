@@ -2,7 +2,7 @@ import numpy as np
 import math
 import matplotlib.pyplot as plt
 import scipy.integrate
-from field import Point2D, Field, Rectangle
+from field import Point2D, Field, Rectangle, GenNHK2022_Field
 
 
 def psi(phi_v, phi_u, s):
@@ -76,29 +76,7 @@ def clothoid(points, start_angle, target_angle):
 
 
 if __name__ == '__main__':
-    field = Field(12, 12)
-    field.add_obstacle(Rectangle(6.0, 6.0, 9.0, 7.0, 0.0, obstacle=False, fill=False))
-
-    field.add_obstacle(Rectangle(6.0, 6.0, 11.9, 11.9, 0.0, obstacle=True, fill=False))
-    field.add_obstacle(Rectangle(6.0, 6.0, 11.9, 11.9, 0.0, obstacle=True, fill=False))
-
-    field.add_obstacle(Rectangle(12.0-0.15/2.0 - 0.05, 6.0, 0.15, 1, 0.0, obstacle=True, fill=True))
-    field.add_obstacle(Rectangle(0.15/2.0 + 0.05, 6.0, 0.15, 1, 0.0, obstacle=True, fill=True))
-
-    field.add_obstacle(Rectangle(6.0, 6.0, 0.5/2.0, 0.5/2.0, 0.0, obstacle=True, fill=True))
-    field.add_obstacle(Rectangle(6.0, 6.0, 0.5/2.0, 0.5/2.0, 0.0, obstacle=True, fill=True))
-
-    field.add_obstacle(Rectangle(6.0, 0.05+1/2, 1, 1, 0.0, obstacle=False, fill=False))
-    field.add_obstacle(Rectangle(6.0, 0.05+1.45+1/2, 1, 1, 0.0, obstacle=False, fill=False))
-    field.add_obstacle(Rectangle(6.0, 12.0 - 0.05-1/2, 1, 1, 0.0, obstacle=False, fill=False))
-    field.add_obstacle(Rectangle(6.0, 12.0 - 0.05-1.45-1/2, 1, 1, 0.0, obstacle=False, fill=False))
-
-    field.add_obstacle(Rectangle(6.0, 0.05+1.45+1/2+1, 2, 1, 0.0, obstacle=False, fill=False))
-    field.add_obstacle(Rectangle(6.0, 12.0 - 0.05-1.45-1/2-1, 2, 1, 0.0, obstacle=False, fill=False))
-
-    field.add_obstacle(Rectangle(6.0, 12.0-2.5/2.0, 12.0, 2.5, 0.0, obstacle=False, fill=False, color="red"))
-    field.add_obstacle(Rectangle(6.0, 2.5/2.0, 12.0, 2.5, 0.0, obstacle=False, fill=False, color="blue"))
-
+    field = GenNHK2022_Field()
     field.plot()
 
     start_point = Point2D(6.0, 2.0, 0.0)

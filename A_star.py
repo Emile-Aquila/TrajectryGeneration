@@ -3,7 +3,7 @@ import math
 import copy
 import time
 import matplotlib.pyplot as plt
-from field import Field, Circle, Rectangle, Point2D
+from field import Field, Circle, Rectangle, Point2D, GenNHK2022_Field
 import heapq
 from Dijkstra import dijkstra
 from RRT import RRT_star, RRT
@@ -37,7 +37,7 @@ def A_star(field, start_point, target_point, unit_dist=0.05, show=True):
         return checked_node[point_prev.getXY()][0] + (point_now - point_prev).len() + (target_point - point_now).len()
 
     terminate_point = None
-    while True:
+    while len(queue) != 0:
         score, dist, point, point_prev = heapq.heappop(queue)  # score, dist, point, point_prev
         if (point.getXY() in checked_node) and (dist >= checked_node[point.getXY()][0]):
             continue
@@ -53,6 +53,9 @@ def A_star(field, start_point, target_point, unit_dist=0.05, show=True):
                 heapq.heappush(queue, new_node)
 
     # ここまで解の探索
+    if len(queue) == 0:
+        print("Can't archive goal")
+        return []
     ans_path = [terminate_point]
     while ans_path[-1] != start_point:
         ans_path.append(checked_node[ans_path[-1].getXY()][1])
@@ -66,10 +69,11 @@ def A_star(field, start_point, target_point, unit_dist=0.05, show=True):
 
 
 if __name__ == '__main__':
-    field = Field(12, 12)
-    field.add_obstacle(Circle(2.0, 4.0, 1.0, True))
-    field.add_obstacle(Circle(6.0, 6.0, 0.25, True))
-    field.add_obstacle(Rectangle(5, 2, 1, 3, np.pi / 4.0, True))
+    # field = Field(12, 12)
+    # field.add_obstacle(Circle(2.0, 4.0, 1.0, True))
+    # field.add_obstacle(Circle(6.0, 6.0, 0.25, True))
+    # field.add_obstacle(Rectangle(5, 2, 1, 3, np.pi / 4.0, True))
+    field = GenNHK2022_Field()
     field.plot()
 
     start_point = Point2D(0.1, 0.1)

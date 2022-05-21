@@ -3,9 +3,10 @@ import math
 import copy
 import time
 import matplotlib.pyplot as plt
-from field import Field, Circle, Rectangle, Point2D
+from field import Field, Circle, Rectangle, Point2D, GenNHK2022_Field
 from abc import ABC, abstractmethod
 from A_star import A_star
+from RRT import RRT_star
 from scipy import interpolate
 
 
@@ -202,22 +203,31 @@ class MCMPC:
 
 if __name__ == '__main__':
     field = Field(12, 12)
-    field.add_obstacle(Circle(5.0, 5.5, 0.2, True))
-    field.add_obstacle(Circle(5.5, 6.4, 0.15, True))
-    field.add_obstacle(Circle(6.0, 6.0, 0.25, True))
+    field.add_obstacle(Circle(5.0, 5.5, 0.2 + 0.15, True))
+    field.add_obstacle(Circle(5.5, 6.0, 0.3 + 0.15, True))
+    field.add_obstacle(Circle(5.5, 7.0, 0.15 + 0.15, True))
+    field.add_obstacle(Circle(6.2, 6.0, 0.25 + 0.15, True))
+    #
+    # field = GenNHK2022_Field()
     # field.add_obstacle(Rectangle(5, 2, 1, 3, np.pi / 4.0, True))
     # field.plot()
 
-    start_point = Point2D(0.1, 0.1)
-    target_point = Point2D(6.0, 7.0)
+    start_point = Point2D(1.0, 1.0)
+    # target_point = Point2D(6.0, 7.0)
+    target_point = Point2D(6.0, 6.5)
     dist, path_global_pre = A_star(field, start_point, target_point, 0.2, show=False)
+
+    rrt = RRT_star(field, 1.0, 0.05, 0.1)
+    dist, path_global2, _ = rrt.planning(start_point, target_point, 600, show=False, star=True)
+
     print(dist)
     path_global = path_global_pre[::4]
     path_global.append(path_global_pre[-1])
     field.plot_path(path_global, start_point, target_point, show=True)
+    field.plot_path(path_global2, start_point, target_point, show=True)
 
     mcmpc_config = MCMPC_Config()
-    initial_state = Robot_state(coord=Point2D(0.1, 0.1, math.pi/2.0))
+    initial_state = Robot_state(coord=Point2D(1.0, 1.0, math.pi/2.0))
     robot_model = Robot_model_Circle(r=0.1)
 
     # スプライン補間

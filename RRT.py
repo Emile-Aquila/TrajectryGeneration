@@ -68,6 +68,11 @@ class RRT:
                     nodes.append(new_point)
                     tree[new_point.getXY()] = (nn_node, (nn_node - new_point).len())
         nn_node, dist = self._calc_nearest_neighbor(nodes, target_point)
+        sorted_node = sorted(nodes, key=lambda x: (x-target_point).len())
+        for node in sorted_node:
+            if not self.field.check_collision_line_segment(node, target_point):
+                nn_node = node
+                break
         ans_path = [target_point, nn_node]
         while ans_path[-1] is not start_point:
             ans_path.append(tree[ans_path[-1].getXY()][0])

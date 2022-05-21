@@ -114,18 +114,25 @@ class Circle(Object):
             return True
 
     def check_collision_line_segment(self, point1, point2):
-        vec = point1 - point2
+        vec = point2 - point1
         max_dist = max((point2 - self.center).len(), (point1 - self.center).len())
-        min_dist = np.abs(((self.center - point1).cross(vec)) / vec.len())
+        min_dist = np.abs((vec.cross(self.center - point1)) / vec.len())
+        # TODO : 円と線分の距離の計算
         if min_dist == self.r or max_dist == self.r:  # 円と線分が接する
             return True
-        if (min_dist < self.r) ^ (max_dist < self.r):  # xor. 交差しない事を判定
-            return True
-        else:
-            return False
+        if self.fill:
+            if min_dist <= self.r:
+                if (self.center - point2).dot(vec) * (self.center - point1).dot(vec) < 0.0:
+                    return True
+                else:
+                    return False
+        if not self.fill:
+            if (min_dist < self.r) ^ (max_dist < self.r):  # xor. 交差しない事を判定
+                return True
+        return False
 
     def calc_min_dist_point(self, point):  # pointとの最短距離を計算する
-        return max((self.center - point).len() - self.r, 0.0)
+        return max(abs((self.center - point).len() - self.r), 0.0)
 
     def plot(self, ax):
         c = patches.Circle(xy=(self.center.x, self.center.y), radius=self.r, fill=self.fill,
@@ -292,20 +299,6 @@ class Field:
             plt.show()
         return ax
 
-    # def plot_anime(self, path, start_point, target_point, global_path=None):
-    #     plt.cla()
-    #     ax = self.plot_field()
-    #     ax.plot(start_point.x, start_point.y, color="green", marker="x", markersize=10.0)
-    #     ax.plot(target_point.x, target_point.y, color="red", marker="x", markersize=10.0)
-    #     if global_path is not None:
-    #         for i in range(len(global_path) - 1):
-    #             p1, p2 = global_path[i].getXY(), global_path[i + 1].getXY()
-    #             ax.plot([p1[0], p2[0]], [p1[1], p2[1]], color="grey")
-    #     for i in range(len(path)-1):
-    #         p1, p2 = path[i].getXY(), path[i + 1].getXY()
-    #         ax.plot([p1[0], p2[0]], [p1[1], p2[1]], color="blue")
-    #     plt.pause(0.001)
-
     def plot_anime(self, path, start_point, target_point, global_path=None, predict_trajectory=None):
         ax = plt.axes()
         plt.axis("off")
@@ -340,7 +333,34 @@ class Field:
         self.obstacles.append(obstacle)
 
 
+def GenNHK2022_Field():
+    field = Field(12, 12)
+    field.add_obstacle(Rectangle(6.0, 6.0, 9.0, 7.0, 0.0, obstacle=False, fill=False))
+
+    field.add_obstacle(Rectangle(6.0, 6.0, 11.9, 11.9, 0.0, obstacle=True, fill=False))
+    field.add_obstacle(Rectangle(6.0, 6.0, 11.9, 11.9, 0.0, obstacle=True, fill=False))
+
+    field.add_obstacle(Rectangle(12.0-0.15/2.0 - 0.05, 6.0, 0.15, 1, 0.0, obstacle=True, fill=True))
+    field.add_obstacle(Rectangle(0.15/2.0 + 0.05, 6.0, 0.15, 1, 0.0, obstacle=True, fill=True))
+
+    field.add_obstacle(Rectangle(6.0, 6.0, 0.5/2.0, 0.5/2.0, 0.0, obstacle=True, fill=True))
+    field.add_obstacle(Rectangle(6.0, 6.0, 0.5/2.0, 0.5/2.0, 0.0, obstacle=True, fill=True))
+
+    field.add_obstacle(Rectangle(6.0, 0.05+1/2, 1, 1, 0.0, obstacle=False, fill=False))
+    field.add_obstacle(Rectangle(6.0, 0.05+1.45+1/2, 1, 1, 0.0, obstacle=False, fill=False))
+    field.add_obstacle(Rectangle(6.0, 12.0 - 0.05-1/2, 1, 1, 0.0, obstacle=False, fill=False))
+    field.add_obstacle(Rectangle(6.0, 12.0 - 0.05-1.45-1/2, 1, 1, 0.0, obstacle=False, fill=False))
+
+    field.add_obstacle(Rectangle(6.0, 0.05+1.45+1/2+1, 2, 1, 0.0, obstacle=False, fill=False))
+    field.add_obstacle(Rectangle(6.0, 12.0 - 0.05-1.45-1/2-1, 2, 1, 0.0, obstacle=False, fill=False))
+
+    field.add_obstacle(Rectangle(6.0, 12.0-2.5/2.0, 12.0, 2.5, 0.0, obstacle=False, fill=False, color="red"))
+    field.add_obstacle(Rectangle(6.0, 2.5/2.0, 12.0, 2.5, 0.0, obstacle=False, fill=False, color="blue"))
+    return field
+
+
 if __name__ == '__main__':
+    print("test")
     field = Field(12, 12)
     field.add_obstacle(Circle(2, 4, 1, True))
     field.add_obstacle(Rectangle(5, 2, 1, 3, np.pi / 4.0, True))
