@@ -104,8 +104,12 @@ class DWA:
         total_min_dist = max_dist
         for point in path.traj:
             obses = [obs.calc_min_dist_point(point) for obs in near_obs[0]]
+            # obses = near_obs[0]
             if len(obses) == 0:
                 continue
+            for obs in near_obs[0]:
+                if obs.check_collision(point):
+                    return 0.0, True
             min_dist = min(obses)
             if min_dist == 0.0:
                 return 0.0, True

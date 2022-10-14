@@ -1,3 +1,4 @@
+import itertools
 import numpy as np
 import math
 import matplotlib.pyplot as plt
@@ -62,15 +63,22 @@ class Point2D:  # x, y, theta
 
 
 class Object(ABC):
-    def __init__(self):
+    pos: Point2D
+    fill: bool
+    color: str
+
+    def __init__(self, pos: Point2D, fill: bool, color: str) -> None:
+        self.pos = pos
+        self.fill = fill
+        self.color = color
+
+    @abstractmethod
+    def check_collision(self, obstacle) -> bool:  # obstacleと衝突していないか判定
         pass
 
     @abstractmethod
-    def check_collision(self, point):  # pointにある点がオブジェクトと衝突していないか判定
-        pass
-
-    @abstractmethod
-    def check_collision_line_segment(self, point1, point2):  # point1, point2を結ぶ線分とオブジェクトが衝突していないか判定
+    def check_collision_line_segment(self, point1: Point2D, point2: Point2D) -> bool:
+        # point1, point2を結ぶ線分とオブジェクトが衝突していないか判定
         pass
 
     @abstractmethod
@@ -78,51 +86,48 @@ class Object(ABC):
         pass
 
     @abstractmethod
-    def calc_min_dist_point(self, point):  # pointとの最短距離を計算する
+    def calc_min_dist_point(self, point: Point2D) -> float:  # pointとの最短距離を計算する
         pass
 
     @abstractmethod
-    def change_center(self, new_center_point):  # 中心の位置を変更する
+    def change_pos(self, new_pos: Point2D) -> None:  # 中心の位置を変更する
         pass
 
 
 class Circle(Object):
     def __init__(self, x, y, r, fill=True, color="black"):
-        super().__init__()
-        self.center = Point2D(x, y, 0.0)
+        super().__init__(Point2D(x, y, 0.0), fill, color)
         self.r = r
-        self.fill = fill
-        self.color = color
 
-    def check_collision(self, point):
-        if type(point) == Point2D:
+    def check_collision(self, obstacle):
+        if type(obstacle) == Point2D:
             if self.fill:
-                return (self.center - point).len() <= self.r
+                return (self.pos - obstacle).len() <= self.r
             else:
-                return (self.center - point).len() == self.r
-        elif type(point) == Circle:
-            return (self.center - point.center).len() <= self.r
-        elif type(point) == Rectangle:
-            for tmp in point.vertex:
-                if (tmp - self.center).len() <= self.r:
+                return (self.pos - obstacle).len() == self.r
+        elif type(obstacle) == Circle:
+            return (self.pos - obstacle.pos).len() <= self.r
+        elif type(obstacle) == Rectangle:
+            for tmp in obstacle.vertex:
+                if (tmp - self.pos).len() <= self.r:
                     return True
-            rect1 = Rectangle(point.center.x, point.center.y, point.w + self.r * 2.0, point.h, point.theta)
-            rect2 = Rectangle(point.center.x, point.center.y, point.w, point.h + self.r * 2.0, point.theta)
-            return rect1.check_collision(self.center) or rect2.check_collision(self.center)
+            rect1 = Rectangle(obstacle.pos.x, obstacle.pos.y, obstacle.w + self.r * 2.0, obstacle.h, obstacle.theta)
+            rect2 = Rectangle(obstacle.pos.x, obstacle.pos.y, obstacle.w, obstacle.h + self.r * 2.0, obstacle.theta)
+            return rect1.check_collision(self.pos) or rect2.check_collision(self.pos)
         else:
             print("Error in check collision")
             return True
 
     def check_collision_line_segment(self, point1, point2):
         vec = point2 - point1
-        max_dist = max((point2 - self.center).len(), (point1 - self.center).len())
-        min_dist = np.abs((vec.cross(self.center - point1)) / vec.len())
+        max_dist = max((point2 - self.pos).len(), (point1 - self.pos).len())
+        min_dist = np.abs((vec.cross(self.pos - point1)) / vec.len())
         # TODO : 円と線分の距離の計算
         if min_dist == self.r or max_dist == self.r:  # 円と線分が接する
             return True
         if self.fill:
             if min_dist <= self.r:
-                if (self.center - point2).dot(vec) * (self.center - point1).dot(vec) < 0.0:
+                if (self.pos - point2).dot(vec) * (self.pos - point1).dot(vec) < 0.0:
                     return True
                 else:
                     return False
@@ -132,58 +137,58 @@ class Circle(Object):
         return False
 
     def calc_min_dist_point(self, point):  # pointとの最短距離を計算する
-        return max(abs((self.center - point).len() - self.r), 0.0)
+        return max(abs((self.pos - point).len() - self.r), 0.0)
 
     def plot(self, ax):
-        c = patches.Circle(xy=(self.center.x, self.center.y), radius=self.r, fill=self.fill,
+        c = patches.Circle(xy=(self.pos.x, self.pos.y), radius=self.r, fill=self.fill,
                            fc=self.color, ec=self.color)  # surface color, edge color
         ax.add_patch(c)
         ax.set_aspect("equal")
 
-    def change_center(self, new_center_point):  # 中心の位置を変更する
-        self.center = new_center_point
+    def change_pos(self, new_pos):  # 中心の位置を変更する
+        self.pos = new_pos
 
 
 class Rectangle(Object):
     def __init__(self, x, y, w, h, theta, fill=True, color="black", obstacle=True):  # 横w, 縦h, 角度thetaの長方形
-        super().__init__()
-        self.center = Point2D(x, y, 0.0)
+        super().__init__(Point2D(x, y, theta), fill, color)
         self.theta = theta
         self.w = w
         self.h = h
-        self.fill = fill
-        self.color = color
         self.obstacle = obstacle
-        self.vertex = [
-            Point2D(w / 2.0, h / 2.0).rotate(theta) + self.center,
-            Point2D(-w / 2.0, h / 2.0).rotate(theta) + self.center,
-            Point2D(-w / 2.0, -h / 2.0).rotate(theta) + self.center,
-            Point2D(w / 2.0, -h / 2.0).rotate(theta) + self.center,
+        self._vertex = [
+            Point2D(w / 2.0, h / 2.0),
+            Point2D(-w / 2.0, h / 2.0),
+            Point2D(-w / 2.0, -h / 2.0),
+            Point2D(w / 2.0, -h / 2.0),
         ]
 
-    def check_collision(self, point):
+    def _change_coordinate(self, pos, vertex: list[Point2D]) -> iter:
+        return iter(map(lambda x: x.rotate(pos.theta) + pos, vertex))
+
+    def get_vertex(self):
+        return list(self._change_coordinate(self.pos, self._vertex))
+
+    def check_collision(self, obstacle) -> bool:
         if not self.obstacle:
             return False
 
-        if type(point) == Point2D:
-            vec = (point - self.center).rotate(-self.theta)
+        if type(obstacle) == Point2D:
+            vec = (obstacle - self.pos).rotate(-self.theta)
             if self.fill:
                 return np.abs(vec.x) <= self.w / 2.0 and np.abs(vec.y) <= self.h / 2.0
             else:
                 return np.abs(vec.x) == self.w / 2.0 and np.abs(vec.y) == self.h / 2.0
-        elif type(point) == Circle:
-            for tmp in self.vertex:
-                if (tmp - point.center).len() <= self.vertex:
-                    return True
-            rect1 = Rectangle(self.center.x, self.center.y, self.w + point.r * 2.0, self.h, self.theta)
-            rect2 = Rectangle(self.center.x, self.center.y, self.w, self.h + point.r * 2.0, self.theta)
-            return rect1.check_collision(point.center) or rect2.check_collision(point.center)
-        elif type(point) == Rectangle:
-            for vert in point.vertex:
-                vec = (vert - self.center).rotate(-self.theta)
-                if np.abs(vec.x) == self.w / 2.0 and np.abs(vec.y) == self.h / 2.0:
+        elif type(obstacle) == Circle:
+            vertex = self.get_vertex()
+            for i in range(len(vertex)):
+                if obstacle.check_collision_line_segment(vertex[i], vertex[(i+1) % len(vertex)]):
                     return True
             return False
+        elif type(obstacle) == Rectangle:
+            vertex_self = self.get_vertex()
+            vertex_their = obstacle.get_vertex()
+            return self.check_collision(vertex_their) or obstacle.check_collision(vertex_self)
         else:
             print("Error in check collision")
             return True
@@ -197,32 +202,30 @@ class Rectangle(Object):
             if vec.cross(point_a1 - point_b1) * vec.cross(point_a2 - point_b1) > 0:
                 return False
             return True
-
-        return (check_line_segment(point1, point2, self.vertex[0], self.vertex[1]) or
-                check_line_segment(point1, point2, self.vertex[1], self.vertex[2]) or
-                check_line_segment(point1, point2, self.vertex[2], self.vertex[3]) or
-                check_line_segment(point1, point2, self.vertex[3], self.vertex[0]))
+        vertex = self.get_vertex()
+        for i in range(len(vertex)):
+            if check_line_segment(point1, point2, vertex[i], vertex[(i+1) % len(vertex)]):
+                return True
+        return False
 
     def plot(self, ax, non_fill=False):
-        vec = Point2D(-self.w / 2.0, -self.h / 2.0).rotate(self.theta) + self.center
+        vec = Point2D(-self.w / 2.0, -self.h / 2.0).rotate(self.theta) + self.pos
         c = patches.Rectangle(xy=(vec.x, vec.y), width=self.w, height=self.h, angle=math.degrees(self.theta),
                               fill=(self.fill and (not non_fill)), fc=self.color, ec=self.color)
         ax.add_patch(c)
         ax.set_aspect("equal")
 
     def calc_min_dist_point(self, point):  # pointとの最短距離を計算する
-        vec = (point - self.center).rotate(-self.theta)  # 回転した座標系でのcenterから見たpointの位置
+        vec = (point - self.pos).rotate(-self.theta)  # 回転した座標系でのcenterから見たpointの位置
         if np.abs(vec.x) <= self.w / 2.0:
             return max(abs(vec.y) - self.h / 2.0, 0.0)
         elif np.abs(vec.y) <= self.h / 2.0:
             return max(abs(vec.x) - self.w / 2.0, 0.0)
         else:
-            return min([(vert - point).len() for vert in self.vertex])
+            return min(map(lambda vert: (vert-point).len(), self.get_vertex()))
 
-    def change_center(self, new_center_point):  # 中心の位置を変更する
-        for vert in self.vertex:
-            vert += new_center_point - self.center
-        self.center = new_center_point
+    def change_pos(self, new_pos):  # 中心の位置を変更する
+        self.pos = new_pos
 
 
 class Field:
@@ -284,7 +287,7 @@ class Field:
             ax = self.plot_field()
         if ctrl_points is not None:
             for i in range(len(ctrl_points)):
-                if i == len(ctrl_points)-1:
+                if i == len(ctrl_points) - 1:
                     ax.plot(ctrl_points[i].x, ctrl_points[i].y, color="red", marker="x", markersize=10.0)
                 else:
                     ax.plot(ctrl_points[i].x, ctrl_points[i].y, color="green", marker="x", markersize=10.0)
@@ -319,7 +322,7 @@ class Field:
             for i in range(len(predict_trajectory) - 1):
                 p1, p2 = predict_trajectory[i].getXY(), predict_trajectory[i + 1].getXY()
                 ax.plot([p1[0], p2[0]], [p1[1], p2[1]], color="cyan")
-        for i in range(len(path)-1):
+        for i in range(len(path) - 1):
             p1, p2 = path[i].getXY(), path[i + 1].getXY()
             ax.plot([p1[0], p2[0]], [p1[1], p2[1]], color="red")
         ax.plot(path[-1].x, path[-1].y, color="red", marker="x", markersize=8.0)
@@ -340,22 +343,22 @@ def GenNHK2022_Field():
     field.add_obstacle(Rectangle(6.0, 6.0, 11.9, 11.9, 0.0, obstacle=True, fill=False))
     field.add_obstacle(Rectangle(6.0, 6.0, 11.9, 11.9, 0.0, obstacle=True, fill=False))
 
-    field.add_obstacle(Rectangle(12.0-0.15/2.0 - 0.05, 6.0, 0.15, 1, 0.0, obstacle=True, fill=True))
-    field.add_obstacle(Rectangle(0.15/2.0 + 0.05, 6.0, 0.15, 1, 0.0, obstacle=True, fill=True))
+    field.add_obstacle(Rectangle(12.0 - 0.15 / 2.0 - 0.05, 6.0, 0.15, 1, 0.0, obstacle=True, fill=True))
+    field.add_obstacle(Rectangle(0.15 / 2.0 + 0.05, 6.0, 0.15, 1, 0.0, obstacle=True, fill=True))
 
-    field.add_obstacle(Rectangle(6.0, 6.0, 0.5/2.0, 0.5/2.0, 0.0, obstacle=True, fill=True))
-    field.add_obstacle(Rectangle(6.0, 6.0, 0.5/2.0, 0.5/2.0, 0.0, obstacle=True, fill=True))
+    field.add_obstacle(Rectangle(6.0, 6.0, 0.5 / 2.0, 0.5 / 2.0, 0.0, obstacle=True, fill=True))
+    field.add_obstacle(Rectangle(6.0, 6.0, 0.5 / 2.0, 0.5 / 2.0, 0.0, obstacle=True, fill=True))
 
-    field.add_obstacle(Rectangle(6.0, 0.05+1/2, 1, 1, 0.0, obstacle=False, fill=False))
-    field.add_obstacle(Rectangle(6.0, 0.05+1.45+1/2, 1, 1, 0.0, obstacle=False, fill=False))
-    field.add_obstacle(Rectangle(6.0, 12.0 - 0.05-1/2, 1, 1, 0.0, obstacle=False, fill=False))
-    field.add_obstacle(Rectangle(6.0, 12.0 - 0.05-1.45-1/2, 1, 1, 0.0, obstacle=False, fill=False))
+    field.add_obstacle(Rectangle(6.0, 0.05 + 1 / 2, 1, 1, 0.0, obstacle=False, fill=False))
+    field.add_obstacle(Rectangle(6.0, 0.05 + 1.45 + 1 / 2, 1, 1, 0.0, obstacle=False, fill=False))
+    field.add_obstacle(Rectangle(6.0, 12.0 - 0.05 - 1 / 2, 1, 1, 0.0, obstacle=False, fill=False))
+    field.add_obstacle(Rectangle(6.0, 12.0 - 0.05 - 1.45 - 1 / 2, 1, 1, 0.0, obstacle=False, fill=False))
 
-    field.add_obstacle(Rectangle(6.0, 0.05+1.45+1/2+1, 2, 1, 0.0, obstacle=False, fill=False))
-    field.add_obstacle(Rectangle(6.0, 12.0 - 0.05-1.45-1/2-1, 2, 1, 0.0, obstacle=False, fill=False))
+    field.add_obstacle(Rectangle(6.0, 0.05 + 1.45 + 1 / 2 + 1, 2, 1, 0.0, obstacle=False, fill=False))
+    field.add_obstacle(Rectangle(6.0, 12.0 - 0.05 - 1.45 - 1 / 2 - 1, 2, 1, 0.0, obstacle=False, fill=False))
 
-    field.add_obstacle(Rectangle(6.0, 12.0-2.5/2.0, 12.0, 2.5, 0.0, obstacle=False, fill=False, color="red"))
-    field.add_obstacle(Rectangle(6.0, 2.5/2.0, 12.0, 2.5, 0.0, obstacle=False, fill=False, color="blue"))
+    field.add_obstacle(Rectangle(6.0, 12.0 - 2.5 / 2.0, 12.0, 2.5, 0.0, obstacle=False, fill=False, color="red"))
+    field.add_obstacle(Rectangle(6.0, 2.5 / 2.0, 12.0, 2.5, 0.0, obstacle=False, fill=False, color="blue"))
     return field
 
 

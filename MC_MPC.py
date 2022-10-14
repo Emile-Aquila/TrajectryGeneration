@@ -4,10 +4,12 @@ import copy
 import time
 import matplotlib.pyplot as plt
 from field import Field, Circle, Rectangle, Point2D, GenNHK2022_Field
+# import Robot_model
 from abc import ABC, abstractmethod
 from A_star import A_star
 from RRT import RRT_star
 from scipy import interpolate
+from DWA import DWA_Config, DWA
 
 
 class Robot_state:
@@ -217,14 +219,22 @@ if __name__ == '__main__':
     target_point = Point2D(6.0, 6.5)
     dist, path_global_pre = A_star(field, start_point, target_point, 0.2, show=False)
 
-    rrt = RRT_star(field, 1.0, 0.05, 0.1)
-    dist, path_global2, _ = rrt.planning(start_point, target_point, 600, show=False, star=True)
+    # rrt = RRT_star(field, 1.0, 0.05, 0.1)
+    # dist, path_global2, _ = rrt.planning(start_point, target_point, 600, show=False, star=True)
+
+    # dwa_config = DWA_Config()
+    # init_state_dwa = Robot_model.Robot_state(coord=Point2D(1.0, 1.0, theta=math.pi/2.0))
+    # r_model_dwa = Robot_model.Robot_model_Circle(initial_state=init_state_dwa, r=0.1)
+    #
+    # dwa = DWA(r_model_dwa, dwa_config, field)
+    # total_path = dwa.calc_path(path_global_pre, init_state_dwa)
 
     print(dist)
     path_global = path_global_pre[::4]
     path_global.append(path_global_pre[-1])
     field.plot_path(path_global, start_point, target_point, show=True)
-    field.plot_path(path_global2, start_point, target_point, show=True)
+    # field.plot_path(path_global2, start_point, target_point, show=True)
+    # field.plot_path(total_path, start_point, target_point, show=True)
 
     mcmpc_config = MCMPC_Config()
     initial_state = Robot_state(coord=Point2D(1.0, 1.0, math.pi/2.0))
