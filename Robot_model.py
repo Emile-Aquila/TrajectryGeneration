@@ -87,10 +87,13 @@ class Robot_model_Circle(Robot_model_base):  # 対向二輪
         self.history_omega.append(self.get_state().omega)
 
 
+VelType = TypeVar("VelType")
+
+
 @dataclasses.dataclass(frozen=True)
-class RobotState2:
+class RobotState2(Generic[VelType]):
     pos: Point2D
-    vel: Any
+    vel: VelType
 
 
 class RobotModel2(ABC):
@@ -134,7 +137,7 @@ class RobotModel_with_Dynamics(Generic[ActType], RobotModel2):
         super(RobotModel_with_Dynamics, self).__init__(objects)
 
     @abstractmethod
-    def step(self, state: RobotState2, act: ActType) -> RobotModel2:
+    def step(self, state: RobotState2, act: ActType, dt: float) -> RobotModel2:
         raise NotImplementedError()
 
     @abstractmethod
