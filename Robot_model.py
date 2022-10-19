@@ -1,5 +1,7 @@
-from field import Field, Circle, Rectangle, Point2D
-import numpy as np
+import dataclasses
+
+from field import Field, Circle, Rectangle, Point2D, Object
+from typing import Any, Generic, TypeVar
 from abc import ABC, abstractmethod
 import copy
 import math
@@ -66,7 +68,7 @@ class Robot_model_Circle(Robot_model_base):  # 対向二輪
             tmp_point = Point2D(
                 self._state.coord.x + v * math.cos(self._state.coord.theta + omega * i * dt) * dt,
                 self._state.coord.y + v * math.sin(self._state.coord.theta + omega * i * dt) * dt,
-                self._state.coord.theta + omega * (i+1) * dt
+                self._state.coord.theta + omega * (i + 1) * dt
             )
             predict_cords.append(tmp_point)
 
@@ -84,3 +86,57 @@ class Robot_model_Circle(Robot_model_base):  # 対向二輪
         self.history_vel.append(self.get_state().v)
         self.history_omega.append(self.get_state().omega)
 
+
+@dataclasses.dataclass(frozen=True)
+class RobotState2:
+    pos: Point2D
+    vel: Any
+
+
+class RobotModel2(ABC):
+    _objects: list[Object]
+
+    def __init__(self, objects: list[Object]):
+        self._objects = objects
+
+    def check_collision(self, state: RobotState2, obstacles: list[Object]) -> bool:
+        def calc_pos(pos_: Point2D, obj_: Object) -> Point2D:
+            new_pos = pos_ + Point2D(obj_.pos.x, obj_.pos.y, 0.0).rotate(pos_.theta)
+            new_pos.theta += obj_.pos.theta
+            return new_pos
+
+        tmp_objects = map(lambda x: x.change_pos(calc_pos(state.pos, x)), self._objects)
+        for obstacle in obstacles:
+            for obj in tmp_objects:
+                if obj.check_collision(obstacle):
+                    return True
+        return False
+
+    def get_objects(self, state: RobotState2) -> list[Object]:
+        def calc_pos(pos_: Point2D, obj_: Object) -> Point2D:
+            new_pos = pos_ + Point2D(obj_.pos.x, obj_.pos.y, 0.0).rotate(pos_.theta)
+            new_pos.theta += obj_.pos.theta
+            return new_pos
+
+        return list(map(lambda x: x.change_pos(calc_pos(state.pos, x)), self._objects))
+
+    def plot(self, ax):
+        for tmp in self._objects:
+            tmp.plot(ax)
+        ax.set_aspect("equal")
+
+
+ActType = TypeVar("ActType")
+
+
+class RobotModel_with_Dynamics(Generic[ActType], RobotModel2):
+    def __init__(self, objects: list[Object]):
+        super(RobotModel_with_Dynamics, self).__init__(objects)
+
+    @abstractmethod
+    def step(self, state: RobotState2, act: ActType) -> RobotModel2:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def generate_next_act(self, state: RobotState2, act_pre: ActType, config: Any) -> ActType:
+        pass
