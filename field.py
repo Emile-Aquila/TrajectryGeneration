@@ -43,6 +43,9 @@ class Point2D:  # x, y, theta
         y = self.y * other
         return Point2D(x, y, self.theta)
 
+    def __repr__(self):
+        return "("+str(self.x)+", "+str(self.y)+", "+str(self.theta)+")"
+
     def len(self):
         return np.sqrt(self.x ** 2 + self.y ** 2)
 

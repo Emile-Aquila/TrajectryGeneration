@@ -137,7 +137,7 @@ class RobotModel_with_Dynamics(Generic[ActType], RobotModel2):
         super(RobotModel_with_Dynamics, self).__init__(objects)
 
     @abstractmethod
-    def step(self, state: RobotState2, act: ActType, dt: float) -> RobotModel2:
+    def step(self, state: RobotState2, act: ActType, dt: float) -> RobotState2:
         raise NotImplementedError()
 
     @abstractmethod

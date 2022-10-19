@@ -12,63 +12,6 @@ from RRT import RRT_star
 from scipy import interpolate
 
 
-# class Robot_state:
-#     def __init__(self, coord=Point2D(0.0, 0.0), v0=0.0, omega0=0.0):
-#         self.coord = coord
-#         self.v = v0  # vの符号付きの大きさ
-#         self.omega = omega0  # 角速度
-
-
-# class Robot_model_base(ABC):
-#     def __init__(self):
-#         self.objects = []
-#
-#     @abstractmethod
-#     def check_collision(self, state, obj):  # オブジェクトと衝突していないか判定
-#         pass
-#
-#     @abstractmethod
-#     def plot(self, ax, state):  # 図形をmatplotlibで描画
-#         pass
-#
-#     @abstractmethod
-#     def move(self, state, v, omega, dt):  # ロボットを動かす
-#         pass
-#
-#
-# class Robot_model_Circle(Robot_model_base):  # 対向二輪
-#     def __init__(self, r):
-#         super().__init__()
-#         self.objects = [
-#             Circle(0.0, 0.0, r, fill=True, color="green")
-#         ]
-#
-#     def check_collision(self, state, obj):
-#         for tmp in self.objects:
-#             tmp.change_center(state.coord)  # ロボットのオブジェクトの座標合わせ
-#             if tmp.check_collision(obj):
-#                 return True
-#         return False
-#
-#     def plot(self, ax, state):
-#         for tmp in self.objects:
-#             tmp.change_center(state.coord)
-#             tmp.plot(ax)
-#         ax.set_aspect("equal")
-#
-#     def move(self, state, v, omega, dt):
-#         ans_state = copy.deepcopy(state)
-#         ans_state.coord.x += (v+state.v)/2.0 * math.cos(state.coord.theta) * dt
-#         ans_state.coord.y += (v+state.v)/2.0 * math.sin(state.coord.theta) * dt
-#         ans_state.coord.theta += omega * dt
-#         while ans_state.coord.theta > math.pi*2.0:
-#             ans_state.coord.theta -= math.pi*2.0
-#         while ans_state.coord.theta < -math.pi*2.0:
-#             ans_state.coord.theta += math.pi*2.0
-#         ans_state.v = v
-#         ans_state.omega = omega
-#         return ans_state
-
 @dataclasses.dataclass(frozen=True)
 class V_Omega:
     v: float  # 符号付きのvelの大きさ
@@ -81,6 +24,18 @@ class V_Omega:
         return V_Omega(self.v * other, self.omega * other)
 
     __rmul__ = __mul__
+
+    def __sub__(self, other):
+        return V_Omega(self.v - other.v, self.omega - other.omega)
+
+    def __abs__(self):
+        return V_Omega(abs(self.v), abs(self.omega))
+
+    # def __truediv__(self, other: float):
+    #     return self * (1.0 / other)
+
+    def weighted_sum(self, weights: list[float]) -> float:
+        return self.v * weights[0] + self.omega * weights[1]
 
 
 @dataclasses.dataclass
@@ -113,7 +68,7 @@ class Parallel_TwoWheel_Vehicle_Model(RobotModel_with_Dynamics[V_Omega]):
         new_pos = state.pos + Point2D(vel.v * dt * math.cos(state.pos.theta),
                                       vel.v * dt * math.sin(state.pos.theta),
                                       vel.omega * dt)
-        return RobotState2[V_Omega](new_pos, vel)
+        return RobotState2[V_Omega](new_pos, act)
 
     def _clip(self, value, min_value, max_value):
         return max(min(max_value - 1e-3, value), min_value + 1e-3)
@@ -135,20 +90,10 @@ class MCMPC_Config:
         self.act_config = V_Omega_Config(max_v=1.0, max_omega=90.0 * math.pi / 180.0,
                                          max_d_v=8.0, max_d_omega=180.0 * math.pi / 180.0,
                                          sigma_v=0.9, sigma_omega=90.0 * math.pi / 180.0 * 0.9, dt=0.1)
-        self.max_v = 1.0  # [m/s]
-        self.min_v = -1.0  # [m/s]
-        self.max_omega = 90.0 * math.pi / 180.0  # [rad/s]
-        self.min_omega = -90.0 * math.pi / 180.0  # [rad/s]
-
-        self.max_d_v = 8.0  # [m/ss]
-        self.max_d_omega = 180.0 * math.pi / 180.0  # [rad/ss]
-
-        self.dt = 0.1  # [s]
+        self.vel_weight = [1.0, 0.0]
+        self.d_vel_weight = [1.0, 1.0]
         self.predict_step_num = 10  # 1回の予測に用いるステップ数
         self.iteration_num = 40  # 1回の制御周期あたりの予測計算の回数
-
-        self.sigma_v = self.max_v * 0.9
-        self.sigma_omega = self.max_omega * 0.9
 
         self.num_trajectories_for_calc = 5
         self.id_search_num = 10
@@ -157,12 +102,16 @@ class MCMPC_Config:
 
 
 class MCMPC:
-    def __init__(self, model, config, field):
+    model: RobotModel_with_Dynamics
+    config: MCMPC_Config
+    field: Field
+
+    def __init__(self, model: RobotModel_with_Dynamics, config: MCMPC_Config, field: Field):
         self.model = model
         self.config = config
         self.field = field
 
-    def _calc_nearest_index(self, point, global_path, start_index):
+    def _calc_nearest_index(self, point: Point2D, global_path: list[Point2D], start_index: int) -> int:
         min_dist = float("inf")
         min_idx = start_index
         for i in range(start_index, min(len(global_path), start_index + self.config.id_search_num)):
@@ -171,101 +120,88 @@ class MCMPC:
                 min_idx = i
         return min_idx
 
-    def _check_reach_point(self, state, global_path, global_path_id):
-        if (global_path[global_path_id] - state.coord).len() < self.config.reach_dist:
+    def _check_reach_point(self, state: RobotState2, global_path: list[Point2D], global_path_id: int) -> bool:
+        if (global_path[global_path_id] - state.pos).len() < self.config.reach_dist:
             return True
         else:
             return False
 
-    def _calc_eval_func(self, state, trajectory, global_path, global_path_idx):
+    def _calc_eval_func(self, state: RobotState2, trajectory: list[RobotState2], global_path: list[Point2D],
+                        global_path_idx: int) -> float:
         traj = np.insert(np.array(trajectory), 0, state)
-        vs = np.insert(np.array([tmp.v for tmp in trajectory]), 0, state.v)
-        omegas = np.insert(np.array([tmp.omega for tmp in trajectory]), 0, state.omega)
-        d_v = np.abs(vs[1:-1] - vs[0:-2]) / self.config.dt
-        d_omega = np.abs(omegas[1:-1] - omegas[0:-2]) / self.config.dt
-        if np.max(vs) > self.config.max_v or np.min(vs) < self.config.min_v \
-                or np.max(omegas) > self.config.max_omega or np.min(omegas) < self.config.min_omega:
-            print("a", vs, omegas)
-            return 100.0 * len(traj)
-        if np.max(d_v) > self.config.max_d_v \
-                or np.max(d_omega) > self.config.max_d_omega:
-            print("b")
-            return 100.0 * len(traj)
-        for tmp in traj:
-            if self.field.check_collision(tmp.coord):
-                return 100.0 * len(traj)
+        vels = np.insert(np.array([stat.vel for stat in trajectory]), 0, state.vel)
+        d_vels = np.abs(vels[1:-1] - vels[0:-2]) * (1.0 / self.config.act_config.dt)
+
+        for stat in traj:
+            if self.field.check_collision(stat.pos):
+                return -100.0 * len(traj)
         score = 0.0
-        sum_d_v = np.average(d_v)
-        sum_d_omega = np.average(d_omega)
+        ave_d_vel = np.sum(d_vels) * (1.0 / len(d_vels))
+        ave_vel = np.sum(vels) * (1.0 / len(vels))
         path_id = global_path_idx
 
-        sum_v = np.average(vs)
-
         for i, tmp in enumerate(traj):
-            # id_tmp = self._calc_nearest_index(tmp.coord, global_path, path_id)
-            # score += (global_path[id_tmp] - tmp.coord).len() + sum_d_v * 0.005 + sum_d_omega * 0.005
-            # if path_id > 0:
-            # target_vec = global_path[path_id] - global_path[path_id-1]
-            # score += abs(tmp.coord.theta - math.atan2(target_vec.y, target_vec.x)) * 0.1
-
-            path_id = min(self._calc_nearest_index(tmp.coord, global_path, path_id), len(global_path) - 1)
-            score += (global_path[path_id] - tmp.coord).len() + sum_d_v * 0.005 + sum_d_omega * 0.005 - sum_v * 0.001
+            path_id = min(self._calc_nearest_index(tmp.pos, global_path, path_id), len(global_path) - 1)
+            score -= (global_path[path_id] - tmp.pos).len() + ave_d_vel.weighted_sum(self.config.d_vel_weight) * 0.005 \
+                     - ave_vel.weighted_sum(self.config.vel_weight) * 0.001
             if path_id > 0:
                 target_vec = global_path[path_id] - global_path[path_id - 1]
-                score += abs(tmp.coord.theta - math.atan2(target_vec.y, target_vec.x)) * 0.1
+                d_angle = tmp.pos.theta - math.atan2(target_vec.y, target_vec.x)
+                while d_angle > math.pi*2.0 or d_angle <= 0.0:
+                    if d_angle > math.pi*2.0:
+                        d_angle -= math.pi*2.0
+                    else:
+                        d_angle += math.pi*2.0
+                d_angle = min(abs(d_angle), math.pi*2.0 - abs(d_angle))
+                score -= d_angle * 0.1
+        # print("score {}".format(score))
         return score
 
-    def _clip(self, value, min_value, max_value):
-        return max(min(max_value - 1e-3, value), min_value + 1e-3)
-
-    def _predict_trajectory(self, state):
+    def _predict_trajectory(self, state: RobotState2, act_pre) -> tuple[list[RobotState2], list]:
         state = copy.deepcopy(state)
-        trajectory = [state]
-        dt = self.config.dt
+        act = copy.deepcopy(act_pre)
+        trajectory = list[RobotState2]([state])
+        acts = list[type(act_pre)]([act])
         for _ in range(self.config.predict_step_num):
-            v = self._clip(np.random.normal(trajectory[-1].v, self.config.sigma_v), self.config.min_v,
-                           self.config.max_v)
-            omega = self._clip(np.random.normal(trajectory[-1].omega, self.config.sigma_omega), self.config.min_omega,
-                               self.config.max_omega)
-            v = self._clip(v, trajectory[-1].v - self.config.max_d_v * dt, trajectory[-1].v + self.config.max_d_v * dt)
-            omega = self._clip(omega, trajectory[-1].omega - self.config.max_d_omega * dt,
-                               trajectory[-1].omega + self.config.max_d_omega * dt)
+            act = self.model.generate_next_act(state, act, self.config.act_config)
+            state = self.model.step(state, act, self.config.act_config.dt)
 
-            state = self.model.move(state, v, omega, self.config.dt)
-
+            acts.append(act)
             trajectory.append(state)
-        return trajectory[1:-1]
+        return trajectory[1:-1], acts[1:-1]
 
-    def calc_step(self, state, global_path, global_path_idx):
-        trajectories = []
-        scores = []
+    def calc_step(self, state: RobotState2, act_pre, global_path: list[Point2D], global_path_idx: int) \
+            -> tuple[Any, list[RobotState2]]:
+        trajectories = list[list[RobotState2]]([])
+        actions = list[list[type(act_pre)]]([])
+
+        scores = list[tuple]([])
         for i in range(self.config.iteration_num):
-            traj = self._predict_trajectory(state)
+            traj, acts = self._predict_trajectory(state, act_pre)
+            actions.append(acts)
             trajectories.append(traj)
             scores.append((self._calc_eval_func(state, traj, global_path, global_path_idx), i))
         scores.sort()
+        scores.reverse()
         ans_scores = np.array([score for score, _ in scores[0:self.config.num_trajectories_for_calc]])
-        ans_trajs_v = np.array([trajectories[i][0].v for _, i in scores[0:self.config.num_trajectories_for_calc]])
-        ans_trajs_omega = np.array(
-            [trajectories[i][0].omega for _, i in scores[0:self.config.num_trajectories_for_calc]])
-        # print(ans_trajs_v, ans_trajs_omega)
-        ans_v = np.average(ans_trajs_v, axis=0, weights=np.exp(-ans_scores))
-        ans_omega = np.average(ans_trajs_omega, axis=0, weights=np.exp(-ans_scores))
-        # print(ans_scores, ans_v, ans_omega)
+        ans_trajs_act = np.array([actions[i][0] for _, i in scores[0:self.config.num_trajectories_for_calc]])
+        exp_score_sum = np.sum(np.exp(ans_scores))
+        ans_act = np.sum([act * np.exp(score) * (1.0 / (exp_score_sum+1e-20)) for act, score in zip(ans_trajs_act, ans_scores)])
 
-        return ans_v, ans_omega, trajectories[scores[0][1]]
+        return ans_act, trajectories[scores[0][1]]
 
-    def calc_trajectory(self, initial_state, global_path):
+    def calc_trajectory(self, initial_state: RobotState2, act_pre, global_path: list[Point2D]) -> list[Point2D]:
         state = copy.deepcopy(initial_state)
-        ans = [state.coord]
+        act = copy.deepcopy(act_pre)
+        ans = [state.pos]
         for _ in range(1000):
-            idx = self._calc_nearest_index(state.coord, global_path, 0)
-            v, omega, predictive_path = self.calc_step(state, global_path, min(idx + 1, len(global_path) - 1))
-            state = self.model.move(state, v, omega, self.config.dt)
-            ans.append(state.coord)
+            idx = self._calc_nearest_index(state.pos, global_path, 0)
+            act, predictive_path = self.calc_step(state, act, global_path, min(idx + 1, len(global_path) - 1))
+            state = self.model.step(state, act, self.config.act_config.dt)
+            ans.append(state.pos)
             if self._check_reach_point(state, global_path, len(global_path) - 1):
                 break
-            self.field.plot_anime(ans, start_point, target_point, global_path, [tmp.coord for tmp in predictive_path])
+            self.field.plot_anime(ans, start_point, target_point, global_path, [tmp.pos for tmp in predictive_path])
         return ans
 
 
@@ -303,8 +239,8 @@ if __name__ == '__main__':
     # field.plot_path(total_path, start_point, target_point, show=True)
 
     mcmpc_config = MCMPC_Config()
-    initial_state = Robot_state(coord=Point2D(1.0, 1.0, math.pi / 2.0))
-    robot_model = Robot_model_Circle(r=0.1)
+    init_state = RobotState2(Point2D(1.0, 1.0, math.pi/2.0), V_Omega(0.0, 0.0))
+    r_model = Parallel_TwoWheel_Vehicle_Model([Circle(x=0.0, y=0.0, r=0.1)])
 
     # スプライン補間
     xs = ([tmp.x for tmp in path_global])
@@ -320,8 +256,8 @@ if __name__ == '__main__':
     # field.plot_path(path_glob, start_point, target_point, show=True)
     field.plot_path(path_global, start_point, target_point, show=True)
 
-    mcmpc = MCMPC(robot_model, mcmpc_config, field)
-    final_path = mcmpc.calc_trajectory(initial_state, path_global)
+    mcmpc = MCMPC(r_model, mcmpc_config, field)
+    final_path = mcmpc.calc_trajectory(init_state, V_Omega(0.0, 0.0), path_global)
     # final_path = mcmpc.calc_trajectory(initial_state, path_glob)
     for tmp in final_path:
         print(tmp.x, tmp.y)
