@@ -142,7 +142,7 @@ class MCMPC:
 
         for i, tmp in enumerate(traj):
             path_id = min(self._calc_nearest_index(tmp.pos, global_path, path_id), len(global_path) - 1)
-            score -= (global_path[path_id] - tmp.pos).len() + ave_d_vel.weighted_sum(self.config.d_vel_weight) * 0.005 \
+            score -= (global_path[path_id] - tmp.pos).len() + ave_d_vel.weighted_sum(self.config.d_vel_weight) * 0.003 \
                      - ave_vel.weighted_sum(self.config.vel_weight) * 0.001
             if path_id > 0:
                 target_vec = global_path[path_id] - global_path[path_id - 1]
@@ -207,9 +207,9 @@ class MCMPC:
 
 if __name__ == '__main__':
     field = Field(12, 12)
-    field.add_obstacle(Circle(5.0, 5.5, 0.2 + 0.15, True))
-    field.add_obstacle(Circle(5.5, 6.0, 0.3 + 0.15, True))
-    field.add_obstacle(Circle(5.5, 7.0, 0.15 + 0.15, True))
+    field.add_obstacle(Circle(5.0, 6.0, 0.2 + 0.15, True))
+    field.add_obstacle(Circle(5.3, 6.0, 0.3 + 0.15, True))
+    field.add_obstacle(Circle(5.5, 8.0, 0.15 + 0.15, True))
     field.add_obstacle(Circle(6.2, 6.0, 0.25 + 0.15, True))
     #
     # field = GenNHK2022_Field()

@@ -4,7 +4,7 @@ from field import Field, Circle, Rectangle, Point2D
 import heapq
 
 
-def gen_motion_model(unit_dist):
+def gen_motion_model(unit_dist: float) -> list[Point2D]:
     return [
         Point2D(unit_dist, 0.0),
         Point2D(-unit_dist, 0.0),
@@ -17,7 +17,7 @@ def gen_motion_model(unit_dist):
     ]
 
 
-def dijkstra(field, start_point, target_point, unit_dist=0.05):
+def dijkstra(field: Field, start_point: Point2D, target_point: Point2D, unit_dist=0.05) -> (float, list[Point2D]):
     motion_model = gen_motion_model(unit_dist)
     queue = [(0.0, start_point, None)]  # dist, point, point_prev
     checked_node = dict()  # key: point,  value: (dist, point_prev)

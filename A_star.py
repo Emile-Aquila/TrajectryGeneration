@@ -9,7 +9,7 @@ from Dijkstra import dijkstra
 from RRT import RRT_star, RRT
 
 
-def gen_motion_model(unit_dist):
+def gen_motion_model(unit_dist: float) -> list[Point2D]:
     return [
         Point2D(unit_dist, 0.0),
         Point2D(-unit_dist, 0.0),
@@ -22,18 +22,18 @@ def gen_motion_model(unit_dist):
     ]
 
 
-def A_star(field, start_point, target_point, unit_dist=0.05, show=True):
+def A_star(field: Field, start_point: Point2D, target_point: Point2D, unit_dist=0.05, show=True) -> (float, list[Point2D]):
     motion_model = gen_motion_model(unit_dist)
     queue = [((target_point - start_point).len(), 0.0, start_point, None)]  # score, dist, point, point_prev
     checked_node = dict()  # key: point,  value: (dist, point_prev)
 
-    def finish_terminate(point_now, max_dist):
+    def finish_terminate(point_now: Point2D, max_dist: float) -> bool:
         if (point_now - target_point).len() < max_dist * np.sqrt(2) / 2.0:
             return True
         else:
             return False
 
-    def eval_func(point_now, point_prev):
+    def eval_func(point_now: Point2D, point_prev: Point2D) -> float:
         return checked_node[point_prev.getXY()][0] + (point_now - point_prev).len() + (target_point - point_now).len()
 
     terminate_point = None
@@ -69,11 +69,11 @@ def A_star(field, start_point, target_point, unit_dist=0.05, show=True):
 
 
 if __name__ == '__main__':
-    # field = Field(12, 12)
-    # field.add_obstacle(Circle(2.0, 4.0, 1.0, True))
-    # field.add_obstacle(Circle(6.0, 6.0, 0.25, True))
-    # field.add_obstacle(Rectangle(5, 2, 1, 3, np.pi / 4.0, True))
-    field = GenNHK2022_Field()
+    field = Field(12, 12)
+    field.add_obstacle(Circle(2.0, 4.0, 1.0, True))
+    field.add_obstacle(Circle(6.0, 6.0, 0.25, True))
+    field.add_obstacle(Rectangle(5, 2, 1, 3, np.pi / 4.0, True))
+    # field = GenNHK2022_Field()
     field.plot()
 
     start_point = Point2D(0.1, 0.1)

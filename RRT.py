@@ -8,7 +8,7 @@ class RRT:
     eps: float
     goal_sample_rate: float
 
-    def __init__(self, field, eps=1.0, goal_sample_rate=0.05):
+    def __init__(self, field: Field, eps=1.0, goal_sample_rate=0.05):
         # self.kdtree = ss.cKDTree
         self.field = field
         self.eps = eps
