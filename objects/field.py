@@ -1,69 +1,9 @@
-import copy
-import itertools
 import numpy as np
 import math
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from abc import ABC, ABCMeta, abstractmethod
-from functools import total_ordering
-
-
-@total_ordering
-class Point2D:  # x, y, theta
-    def __init__(self, x, y, theta=0.0):
-        self.x = x
-        self.y = y
-        self.theta = theta
-
-    def __eq__(self, other):  # ==
-        return self.x == other.x and self.y == other.y and self.theta == other.theta
-
-    def __lt__(self, other):  # <
-        if self.x == other.x:
-            if self.y == other.y:
-                return self.theta < other.theta
-            else:
-                return self.y < other.y
-        else:
-            return self.x < other.x
-
-    def __add__(self, other):  # +
-        x = self.x + other.x
-        y = self.y + other.y
-        theta = self.theta + other.theta
-        return Point2D(x, y, theta)
-
-    def __sub__(self, other):
-        x = self.x - other.x
-        y = self.y - other.y
-        theta = self.theta - other.theta
-        return Point2D(x, y, theta)
-
-    def __mul__(self, other):
-        x = self.x * other
-        y = self.y * other
-        return Point2D(x, y, self.theta)
-
-    def __repr__(self):
-        return "(" + str(self.x) + ", " + str(self.y) + ", " + str(self.theta) + ")"
-
-    def len(self):
-        return np.sqrt(self.x ** 2 + self.y ** 2)
-
-    def rotate(self, theta2):
-        x = self.x * np.cos(theta2) - self.y * np.sin(theta2)
-        y = self.x * np.sin(theta2) + self.y * np.cos(theta2)
-        return Point2D(x, y, theta2 + self.theta)
-
-    def getXY(self):
-        return self.x, self.y
-
-    def cross(self, other):  # 2次元での外積を求める.
-        # \vec{a} \times \vec{b} = a_x b_y - a_y b_x
-        return self.x * other.y - other.x * self.y
-
-    def dot(self, other):
-        return self.x * other.x + self.y * other.y
+from objects.Point2D import Point2D
 
 
 class Object(ABC):
@@ -367,9 +307,19 @@ def GenNHK2022_Field():
     return field
 
 
-if __name__ == '__main__':
-    print("test")
-    field = Field(12, 12)
-    field.add_obstacle(Circle(2, 4, 1, True))
-    field.add_obstacle(Rectangle(5, 2, 1, 3, np.pi / 4.0, True))
-    field.plot()
+def GenTestField(num: int):
+    if num == 0:
+        field = Field(12, 12)
+        field.add_obstacle(Circle(2.0, 4.0, 1.0, True))
+        field.add_obstacle(Circle(6.0, 6.0, 2.0, True))
+        field.add_obstacle(Rectangle(5, 2, 1, 3, np.pi / 4.0, True))
+        return field
+    elif num == 1:
+        field = Field(12, 12)
+        field.add_obstacle(Circle(5.0, 6.0, 0.2 + 0.15, True))
+        field.add_obstacle(Circle(5.3, 6.0, 0.3 + 0.15, True))
+        field.add_obstacle(Circle(5.5, 8.0, 0.15 + 0.15, True))
+        field.add_obstacle(Circle(6.2, 6.0, 0.25 + 0.15, True))
+        return field
+    return Field(12, 12)
+

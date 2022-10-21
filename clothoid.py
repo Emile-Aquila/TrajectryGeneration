@@ -1,9 +1,8 @@
 import numpy as np
 import math
-import matplotlib.pyplot as plt
 import scipy.integrate
-from field import Point2D, Field, Rectangle, GenNHK2022_Field
-from scipy import interpolate
+from objects.field import Point2D, GenNHK2022_Field
+from utils.utils import spline
 
 
 def psi(phi_v, phi_u, s):
@@ -98,22 +97,11 @@ if __name__ == '__main__':
         target_point
     ]
     path = clothoid(pointss, 0.0, math.pi / 2.0)
-    # path = clothoid(pointss, math.pi / 2.0, 0.0)
     field.plot_path_control_point(path, pointss, show=True)
     path = set_angle(path[0::2], 0.0)
     for point in path:
         print("{{{}, {}, {}}},".format(point.x, point.y, point.theta))
     print(len(path))
 
-    # スプライン補間
-    xs = ([tmp.x for tmp in pointss])
-    ys = ([tmp.y for tmp in pointss])
-    print([xs, ys])
-    tck, u = interpolate.splprep([xs, ys], k=3, s=0)
-    u = np.linspace(0, 1, num=50, endpoint=True)
-    spline = interpolate.splev(u, tck)
-    path_glob = []
-    for x, y in zip(spline[0], spline[1]):
-        path_glob.append(Point2D(x, y))
-    # スプライン補間ここまで
+    path_glob = spline(pointss)
     field.plot_path_control_point(path_glob, pointss, show=True)

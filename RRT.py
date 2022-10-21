@@ -1,18 +1,17 @@
 import numpy as np
 import random
-from field import Field, Point2D, Rectangle, Circle
-from Robot_model import RobotModel2, RobotState2
+from objects.field import Field, Point2D, Circle, GenTestField
+from models.Robot_model import RobotModel, RobotState
 import matplotlib.pyplot as plt
-
+import time
 
 class RRT:
     eps: float
     check_length: float  # modelの衝突判定時に直線区間の何メートル区切りで衝突判定を行うか
     goal_sample_rate: float
-    robot_model: RobotModel2 | None
+    robot_model: RobotModel | None
 
-    def __init__(self, field: Field, robot_model: RobotModel2 | None, eps=1.0, goal_sample_rate=0.05, check_length=0.1):
-        # self.kdtree = ss.cKDTree
+    def __init__(self, field: Field, robot_model: RobotModel | None, eps=1.0, goal_sample_rate=0.05, check_length=0.1):
         self.field = field
         self.eps = eps
         self.check_length = check_length
@@ -54,13 +53,13 @@ class RRT:
         else:
             if self.robot_model is None:
                 return False
-            if self.robot_model.check_collision(RobotState2[None](node_pre, None), self.field.obstacles) \
-                    or self.robot_model.check_collision(RobotState2[None](new_node, None), self.field.obstacles):
+            if self.robot_model.check_collision(RobotState[None](node_pre, None), self.field.obstacles) \
+                    or self.robot_model.check_collision(RobotState[None](new_node, None), self.field.obstacles):
                 return True
             unit_vec = (new_node - node_pre) * (1.0 / (new_node - node_pre).len())
             for i in range(int((node_pre-new_node).len() // check_length)):
                 pos = node_pre+unit_vec*(i+1)*check_length
-                if self.robot_model.check_collision(RobotState2[None](pos, None), self.field.obstacles):
+                if self.robot_model.check_collision(RobotState[None](pos, None), self.field.obstacles):
                     return True
             return False
 
@@ -115,7 +114,7 @@ class RRT:
 class RRT_star(RRT):
     R: float
 
-    def __init__(self, field: Field, robot_model: RobotModel2 | None, R: float, eps=1.0, goal_sample_rate=0.05, check_length=0.1):
+    def __init__(self, field: Field, robot_model: RobotModel | None, R: float, eps=1.0, goal_sample_rate=0.05, check_length=0.1):
         super().__init__(field, robot_model, eps, goal_sample_rate, check_length)
         self.R = R
 
@@ -131,17 +130,17 @@ class RRT_star(RRT):
 
 
 if __name__ == '__main__':
-    field = Field(12, 12)
-    field.add_obstacle(Circle(2.0, 4.0, 1.0, True))
-    field.add_obstacle(Circle(6.0, 6.0, 2.0, True))
-    field.add_obstacle(Rectangle(5, 2, 1, 3, np.pi / 4.0, True))
+    field = GenTestField(0)
     field.plot()
 
-    r_model = RobotModel2([Circle(x=0.0, y=0.0, r=0.1, fill=True)])
+    r_model = RobotModel([Circle(x=0.0, y=0.0, r=0.1, fill=True)])
     start_pt = Point2D(0.1, 0.1)
     target_pt = Point2D(8.0, 8.0)
-    rrt = RRT_star(field, None, R=1.0, eps=0.15, goal_sample_rate=0.05, check_length=0.1)
+
+    start_time = time.process_time()
+    rrt = RRT_star(field, None, R=1.0, eps=0.15, goal_sample_rate=0.05, check_length=0.1)  # RRT*
     dist, path, _ = rrt.planning(start_pt, target_pt, 200)
+    print(time.process_time() - start_time)
+
     print(dist)
-    # field.plot_path(path, start_point, target_point)
     field.plot_path(path, start_pt, target_pt, show=True)

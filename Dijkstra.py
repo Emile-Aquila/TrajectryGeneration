@@ -1,6 +1,5 @@
 import numpy as np
-import math
-from field import Field, Circle, Rectangle, Point2D
+from objects.field import Field, Circle, Rectangle, Point2D
 import heapq
 
 

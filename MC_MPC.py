@@ -1,88 +1,12 @@
-import dataclasses
-
 import numpy as np
 import math
 import copy
-import matplotlib.pyplot as plt
-from field import Field, Circle, Rectangle, Point2D, Object
-from Robot_model import RobotState2, RobotModel_with_Dynamics
-from typing import Any, Generic, TypeVar
+from objects.field import Field, Circle, Point2D, GenTestField
+from models.Robot_model import RobotState, RobotModel_with_Dynamics
+from models.DynamicsModel import V_Omega, V_Omega_Config, Parallel_TwoWheel_Vehicle_Model
+from typing import Any
 from A_star import A_star
-from RRT import RRT_star
-from scipy import interpolate
-
-
-@dataclasses.dataclass(frozen=True)
-class V_Omega:
-    v: float  # 符号付きのvelの大きさ
-    omega: float  # \dot{theta}
-
-    def __add__(self, other):
-        return V_Omega(self.v + other.v, self.omega + other.omega)
-
-    def __mul__(self, other: float):
-        return V_Omega(self.v * other, self.omega * other)
-
-    __rmul__ = __mul__
-
-    def __sub__(self, other):
-        return V_Omega(self.v - other.v, self.omega - other.omega)
-
-    def __abs__(self):
-        return V_Omega(abs(self.v), abs(self.omega))
-
-    # def __truediv__(self, other: float):
-    #     return self * (1.0 / other)
-
-    def weighted_sum(self, weights: list[float]) -> float:
-        return self.v * weights[0] + self.omega * weights[1]
-
-
-@dataclasses.dataclass
-class V_Omega_Config:  # absのmax値
-    max_v: float  # [m/s]
-    max_omega: float  # [rad/s]
-
-    max_d_v: float  # [m/ss]
-    max_d_omega: float  # [rad/ss]
-
-    sigma_v: float
-    sigma_omega: float
-
-    dt: float
-
-    def __post_init__(self):
-        self.max_v = abs(self.max_v)
-        self.max_omega = abs(self.max_omega)
-
-        self.max_d_v = abs(self.max_d_v)
-        self.max_d_omega = abs(self.max_d_omega)
-
-
-class Parallel_TwoWheel_Vehicle_Model(RobotModel_with_Dynamics[V_Omega]):
-    def __init__(self, objects: list[Object]):
-        super(Parallel_TwoWheel_Vehicle_Model, self).__init__(objects)
-
-    def step(self, state: RobotState2[V_Omega], act: V_Omega, dt: float) -> RobotState2[V_Omega]:
-        vel = (act + state.vel) * 0.5
-        new_pos = state.pos + Point2D(vel.v * dt * math.cos(state.pos.theta),
-                                      vel.v * dt * math.sin(state.pos.theta),
-                                      vel.omega * dt)
-        return RobotState2[V_Omega](new_pos, act)
-
-    def _clip(self, value, min_value, max_value):
-        return max(min(max_value - 1e-3, value), min_value + 1e-3)
-
-    def generate_next_act(self, state_pre: RobotState2[V_Omega], act_pre: V_Omega, config: V_Omega_Config) -> V_Omega:
-        max_v = min(config.max_v, state_pre.vel.v + config.max_d_v * config.dt)
-        min_v = max(-config.max_v, state_pre.vel.v - config.max_d_v * config.dt)
-
-        max_omega = min(config.max_omega, state_pre.vel.omega + config.max_d_omega * config.dt)
-        min_omega = max(-config.max_omega, state_pre.vel.omega - config.max_d_omega * config.dt)
-
-        new_v = self._clip(np.random.normal(state_pre.vel.v, config.sigma_v), min_v, max_v)
-        new_omega = self._clip(np.random.normal(state_pre.vel.omega, config.sigma_omega), min_omega, max_omega)
-        return V_Omega(new_v, new_omega)
+from utils.utils import spline
 
 
 class MCMPC_Config:
@@ -120,13 +44,13 @@ class MCMPC:
                 min_idx = i
         return min_idx
 
-    def _check_reach_point(self, state: RobotState2, global_path: list[Point2D], global_path_id: int) -> bool:
+    def _check_reach_point(self, state: RobotState, global_path: list[Point2D], global_path_id: int) -> bool:
         if (global_path[global_path_id] - state.pos).len() < self.config.reach_dist:
             return True
         else:
             return False
 
-    def _calc_eval_func(self, state: RobotState2, trajectory: list[RobotState2], global_path: list[Point2D],
+    def _calc_eval_func(self, state: RobotState, trajectory: list[RobotState], global_path: list[Point2D],
                         global_path_idx: int) -> float:
         traj = np.insert(np.array(trajectory), 0, state)
         vels = np.insert(np.array([stat.vel for stat in trajectory]), 0, state.vel)
@@ -157,10 +81,10 @@ class MCMPC:
         # print("score {}".format(score))
         return score
 
-    def _predict_trajectory(self, state: RobotState2, act_pre) -> tuple[list[RobotState2], list]:
+    def _predict_trajectory(self, state: RobotState, act_pre) -> tuple[list[RobotState], list]:
         state = copy.deepcopy(state)
         act = copy.deepcopy(act_pre)
-        trajectory = list[RobotState2]([state])
+        trajectory = list[RobotState]([state])
         acts = list[type(act_pre)]([act])
         for _ in range(self.config.predict_step_num):
             act = self.model.generate_next_act(state, act, self.config.act_config)
@@ -170,9 +94,9 @@ class MCMPC:
             trajectory.append(state)
         return trajectory[1:-1], acts[1:-1]
 
-    def calc_step(self, state: RobotState2, act_pre, global_path: list[Point2D], global_path_idx: int) \
-            -> tuple[Any, list[RobotState2]]:
-        trajectories = list[list[RobotState2]]([])
+    def calc_step(self, state: RobotState, act_pre, global_path: list[Point2D], global_path_idx: int) \
+            -> tuple[Any, list[RobotState]]:
+        trajectories = list[list[RobotState]]([])
         actions = list[list[type(act_pre)]]([])
 
         scores = list[tuple]([])
@@ -191,7 +115,7 @@ class MCMPC:
 
         return ans_act, trajectories[scores[0][1]]
 
-    def calc_trajectory(self, initial_state: RobotState2, act_pre, global_path: list[Point2D]) -> list[Point2D]:
+    def calc_trajectory(self, initial_state: RobotState, act_pre, global_path: list[Point2D]) -> list[Point2D]:
         state = copy.deepcopy(initial_state)
         act = copy.deepcopy(act_pre)
         ans = [state.pos]
@@ -207,48 +131,27 @@ class MCMPC:
 
 
 if __name__ == '__main__':
-    field = Field(12, 12)
-    field.add_obstacle(Circle(5.0, 6.0, 0.2 + 0.15, True))
-    field.add_obstacle(Circle(5.3, 6.0, 0.3 + 0.15, True))
-    field.add_obstacle(Circle(5.5, 8.0, 0.15 + 0.15, True))
-    field.add_obstacle(Circle(6.2, 6.0, 0.25 + 0.15, True))
+    field = GenTestField(0)
+    field.plot_field()
 
-    start_point = Point2D(1.0, 1.0)
-    # target_point = Point2D(6.0, 7.0)
-    target_point = Point2D(6.0, 6.5)
-    dist, path_global_pre = A_star(field, start_point, target_point, None, check_length=0.1, unit_dist=0.2, show=False)
-
-    # rrt = RRT_star(field, 1.0, 0.05, 0.1)
-    # dist, path_global2, _ = rrt.planning(start_point, target_point, 600, show=False, star=True)
+    start_point = Point2D(0.5, 0.5)
+    target_point = Point2D(8.0, 8.0)
+    dist, path_global_pre = A_star(field, start_point, target_point, None, check_length=0.1, unit_dist=0.2, show=True)
 
     print(dist)
     path_global = path_global_pre[::4]
     path_global.append(path_global_pre[-1])
     field.plot_path(path_global, start_point, target_point, show=True)
-    # field.plot_path(path_global2, start_point, target_point, show=True)
-    # field.plot_path(total_path, start_point, target_point, show=True)
 
     mcmpc_config = MCMPC_Config()
-    init_state = RobotState2(Point2D(1.0, 1.0, math.pi / 2.0), V_Omega(0.0, 0.0))
+    init_state = RobotState(Point2D(start_point.x, start_point.y, math.pi / 2.0), V_Omega(0.0, 0.0))
     r_model = Parallel_TwoWheel_Vehicle_Model([Circle(x=0.0, y=0.0, r=0.1)])
 
-    # スプライン補間
-    xs = ([tmp.x for tmp in path_global])
-    ys = ([tmp.y for tmp in path_global])
-    print([xs, ys])
-    # tck, u = interpolate.splprep([xs, ys], k=3, s=0)
-    # u = np.linspace(0, 1, num=100, endpoint=True)
-    # spline = interpolate.splev(u, tck)
-    # path_glob = []
-    # for x, y in zip(spline[0], spline[1]):
-    #     path_glob.append(Point2D(x, y))
-    # スプライン補間ここまで
-    # field.plot_path(path_glob, start_point, target_point, show=True)
+    # path_glob = spline(path_global) # スプライン補間
     field.plot_path(path_global, start_point, target_point, show=True)
 
     mcmpc = MCMPC(r_model, mcmpc_config, field)
-    final_path = mcmpc.calc_trajectory(init_state, V_Omega(0.0, 0.0), path_global)
-    # final_path = mcmpc.calc_trajectory(initial_state, path_glob)
+    final_path = mcmpc.calc_trajectory(init_state, V_Omega(0.0, 0.0), path_global)  # MCMPC
     for tmp in final_path:
         print(tmp.x, tmp.y)
     field.plot_path(final_path, start_point, target_point, show=True)
