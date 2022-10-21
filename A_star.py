@@ -4,6 +4,7 @@ import copy
 import time
 import matplotlib.pyplot as plt
 from field import Field, Circle, Rectangle, Point2D, GenNHK2022_Field
+from Robot_model import RobotModel2, RobotState2
 import heapq
 from Dijkstra import dijkstra
 from RRT import RRT_star, RRT
@@ -22,10 +23,30 @@ def gen_motion_model(unit_dist: float) -> list[Point2D]:
     ]
 
 
-def A_star(field: Field, start_point: Point2D, target_point: Point2D, unit_dist=0.05, show=True) -> (float, list[Point2D]):
+def A_star(field: Field, start_point: Point2D, target_point: Point2D,
+           robot_model: RobotModel2 | None, check_length=0.01,
+           unit_dist=0.05, show=True) -> (float, list[Point2D]):
     motion_model = gen_motion_model(unit_dist)
     queue = [((target_point - start_point).len(), 0.0, start_point, None)]  # score, dist, point, point_prev
     checked_node = dict()  # key: point,  value: (dist, point_prev)
+
+    def A_check_collision(node_pre: Point2D, new_node: Point2D) -> bool:
+        if field.check_collision(new_node):
+            return True
+        elif field.check_collision_line_segment(node_pre, new_node):
+            return True
+        else:
+            if robot_model is None:
+                return False
+            if robot_model.check_collision(RobotState2[None](node_pre, None), field.obstacles) \
+                    or robot_model.check_collision(RobotState2[None](new_node, None), field.obstacles):
+                return True
+            unit_vec = (new_node - node_pre) * (1.0 / (new_node - node_pre).len())
+            for i in range(int((node_pre - new_node).len() // check_length)):
+                pos = node_pre + unit_vec * (i + 1) * check_length
+                if robot_model.check_collision(RobotState2[None](pos, None), field.obstacles):
+                    return True
+            return False
 
     def finish_terminate(point_now: Point2D, max_dist: float) -> bool:
         if (point_now - target_point).len() < max_dist * np.sqrt(2) / 2.0:
@@ -46,7 +67,7 @@ def A_star(field: Field, start_point: Point2D, target_point: Point2D, unit_dist=
             terminate_point = point
             break
         for vec in motion_model:
-            if field.check_collision(point + vec) or field.check_collision_line_segment(point, point + vec):
+            if A_check_collision(point, point+vec):
                 continue
             new_node = (eval_func(point + vec, point), dist + vec.len(), point + vec, point)
             if (point + vec).getXY() not in checked_node:
@@ -86,9 +107,9 @@ if __name__ == '__main__':
     # print(time.process_time() - start_time)
     # ax = field.plot_path(path, start_point, target_point)
     # print(dist)
-
+    r_model = RobotModel2([Circle(x=0.0, y=0.0, r=0.2, fill=True)])
     start_time = time.process_time()
-    dist, path = A_star(field, start_point, target_point, 0.1, show=True)
+    dist, path = A_star(field, start_point, target_point, r_model, check_length=0.1, unit_dist=0.1, show=True)
     print(time.process_time() - start_time)
     print(dist)
 

@@ -140,7 +140,7 @@ if __name__ == '__main__':
     r_model = RobotModel2([Circle(x=0.0, y=0.0, r=0.1, fill=True)])
     start_pt = Point2D(0.1, 0.1)
     target_pt = Point2D(8.0, 8.0)
-    rrt = RRT_star(field, r_model, 1.0, 0.15, 0.05, 0.1)
+    rrt = RRT_star(field, None, R=1.0, eps=0.15, goal_sample_rate=0.05, check_length=0.1)
     dist, path, _ = rrt.planning(start_pt, target_pt, 200)
     print(dist)
     # field.plot_path(path, start_point, target_point)

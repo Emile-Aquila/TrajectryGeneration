@@ -147,12 +147,12 @@ class MCMPC:
             if path_id > 0:
                 target_vec = global_path[path_id] - global_path[path_id - 1]
                 d_angle = tmp.pos.theta - math.atan2(target_vec.y, target_vec.x)
-                while d_angle > math.pi*2.0 or d_angle <= 0.0:
-                    if d_angle > math.pi*2.0:
-                        d_angle -= math.pi*2.0
+                while d_angle > math.pi * 2.0 or d_angle <= 0.0:
+                    if d_angle > math.pi * 2.0:
+                        d_angle -= math.pi * 2.0
                     else:
-                        d_angle += math.pi*2.0
-                d_angle = min(abs(d_angle), math.pi*2.0 - abs(d_angle))
+                        d_angle += math.pi * 2.0
+                d_angle = min(abs(d_angle), math.pi * 2.0 - abs(d_angle))
                 score -= d_angle * 0.1
         # print("score {}".format(score))
         return score
@@ -186,7 +186,8 @@ class MCMPC:
         ans_scores = np.array([score for score, _ in scores[0:self.config.num_trajectories_for_calc]])
         ans_trajs_act = np.array([actions[i][0] for _, i in scores[0:self.config.num_trajectories_for_calc]])
         exp_score_sum = np.sum(np.exp(ans_scores))
-        ans_act = np.sum([act * np.exp(score) * (1.0 / (exp_score_sum+1e-20)) for act, score in zip(ans_trajs_act, ans_scores)])
+        ans_act = np.sum(
+            [act * np.exp(score) * (1.0 / (exp_score_sum + 1e-20)) for act, score in zip(ans_trajs_act, ans_scores)])
 
         return ans_act, trajectories[scores[0][1]]
 
@@ -211,25 +212,14 @@ if __name__ == '__main__':
     field.add_obstacle(Circle(5.3, 6.0, 0.3 + 0.15, True))
     field.add_obstacle(Circle(5.5, 8.0, 0.15 + 0.15, True))
     field.add_obstacle(Circle(6.2, 6.0, 0.25 + 0.15, True))
-    #
-    # field = GenNHK2022_Field()
-    # field.add_obstacle(Rectangle(5, 2, 1, 3, np.pi / 4.0, True))
-    # field.plot()
 
     start_point = Point2D(1.0, 1.0)
     # target_point = Point2D(6.0, 7.0)
     target_point = Point2D(6.0, 6.5)
-    dist, path_global_pre = A_star(field, start_point, target_point, 0.2, show=False)
+    dist, path_global_pre = A_star(field, start_point, target_point, None, check_length=0.1, unit_dist=0.2, show=False)
 
     # rrt = RRT_star(field, 1.0, 0.05, 0.1)
     # dist, path_global2, _ = rrt.planning(start_point, target_point, 600, show=False, star=True)
-
-    # dwa_config = DWA_Config()
-    # init_state_dwa = Robot_model.Robot_state(coord=Point2D(1.0, 1.0, theta=math.pi/2.0))
-    # r_model_dwa = Robot_model.Robot_model_Circle(initial_state=init_state_dwa, r=0.1)
-    #
-    # dwa = DWA(r_model_dwa, dwa_config, field)
-    # total_path = dwa.calc_path(path_global_pre, init_state_dwa)
 
     print(dist)
     path_global = path_global_pre[::4]
@@ -239,7 +229,7 @@ if __name__ == '__main__':
     # field.plot_path(total_path, start_point, target_point, show=True)
 
     mcmpc_config = MCMPC_Config()
-    init_state = RobotState2(Point2D(1.0, 1.0, math.pi/2.0), V_Omega(0.0, 0.0))
+    init_state = RobotState2(Point2D(1.0, 1.0, math.pi / 2.0), V_Omega(0.0, 0.0))
     r_model = Parallel_TwoWheel_Vehicle_Model([Circle(x=0.0, y=0.0, r=0.1)])
 
     # スプライン補間

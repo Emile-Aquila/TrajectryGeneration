@@ -178,7 +178,7 @@ if __name__ == '__main__':
     start_point = Point2D(0.1, 0.1)
     target_point = Point2D(8.0, 8.0)
     # rrt = RRT_star(field, 1.0, 0.05, 0.1)
-    dist, path_global_pre = A_star(field, start_point, target_point, 0.3, show=False)
+    dist, path_global_pre = A_star(field, start_point, target_point, None, check_length=0.1, unit_dist=0.3, show=False)
     print(dist)
     # field.plot_path(path, start_point, target_point)
     path_global = path_global_pre[::4]
