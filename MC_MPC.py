@@ -6,7 +6,7 @@ from models.Robot_model import RobotState, RobotModel_with_Dynamics
 from models.DynamicsModel import V_Omega, V_Omega_Config, Parallel_TwoWheel_Vehicle_Model
 from typing import Any
 from A_star import A_star
-
+from concurrent.futures import ThreadPoolExecutor
 
 class MCMPC_Config:
     def __init__(self):
@@ -15,13 +15,13 @@ class MCMPC_Config:
                                          sigma_v=0.9, sigma_omega=90.0 * math.pi / 180.0 * 0.9, dt=0.1)
         self.vel_weight = [1.0, -0.05]
         self.d_vel_weight = [1.0, 1.0]
-        self.predict_step_num = 10  # 1回の予測に用いるステップ数
+        self.predict_step_num = 8  # 1回の予測に用いるステップ数
         self.iteration_num = 40  # 1回の制御周期あたりの予測計算の回数
 
-        self.num_trajectories_for_calc = 5
-        self.id_search_num = 10
+        self.num_trajectories_for_calc = 7
+        self.id_search_num = 5
 
-        self.reach_dist = 0.2
+        self.reach_dist = 0.3
 
 
 class MCMPC:
@@ -63,15 +63,15 @@ class MCMPC:
                 return -100.0 * len(traj)
         for stat in traj:
             if self.model.check_collision(stat, field.obstacles):
-                score -= 1.0
+                score -= 10.0
         ave_d_vel = np.sum(d_vels) * (1.0 / len(d_vels))
         ave_vel = np.sum(vels) * (1.0 / len(vels))
-        path_id = global_path_idx
 
         for i, tmp in enumerate(traj):
             path_id = min(self._calc_nearest_index(tmp.pos, global_path, global_path_idx), len(global_path) - 1)
-            score -= (global_path[path_id] - tmp.pos).len()*0.4 + ave_d_vel.weighted_sum(self.config.d_vel_weight) * 0.003 \
-                     - ave_vel.weighted_sum(self.config.vel_weight) * 0.003
+            score -= (global_path[path_id] - tmp.pos).len() * 0.4 / max(1, path_id-global_path_idx)
+            score -= ave_d_vel.weighted_sum(self.config.d_vel_weight) * 0.003
+            score += ave_vel.weighted_sum(self.config.vel_weight) * 0.01
             if path_id > 0:
                 target_vec = global_path[path_id] - global_path[path_id - 1]
                 d_angle = tmp.pos.theta - math.atan2(target_vec.y, target_vec.x)
@@ -101,13 +101,28 @@ class MCMPC:
             -> tuple[Any, list[RobotState]]:
         trajectories = list[list[RobotState]]([])
         actions = list[list[type(act_pre)]]([])
-
         scores = list[tuple]([])
-        for i in range(self.config.iteration_num):
-            traj, acts = self._predict_trajectory(state, act_pre)
-            actions.append(acts)
-            trajectories.append(traj)
-            scores.append((self._eval_trajectory(state, traj, global_path, global_path_idx), i))
+
+        def gen_traj(index):
+            traj, act = self._predict_trajectory(state, act_pre)
+            score = self._eval_trajectory(state, traj, global_path, global_path_idx)
+            return [traj, act, score]
+
+        with ThreadPoolExecutor(max_workers=10, thread_name_prefix="thread") as executor:
+            results = executor.map(gen_traj, range(self.config.iteration_num))
+
+        for i, res in enumerate(results):
+            trajectories.append(res[0])
+            actions.append(res[1])
+            scores.append((res[2], i))
+
+        # for i in range(self.config.iteration_num):
+        #     traj, acts = self._predict_trajectory(state, act_pre)
+        #     actions.append(acts)
+        #     trajectories.append(traj)
+
+        # for i, traj in enumerate(trajectories):
+        #     scores.append((self._eval_trajectory(state, traj, global_path, global_path_idx), i))
         scores.sort()
         scores.reverse()
         ans_scores = np.array([score for score, _ in scores[0:self.config.num_trajectories_for_calc]])
@@ -118,7 +133,7 @@ class MCMPC:
 
         return ans_act, trajectories[scores[0][1]]
 
-    def calc_trajectory(self, initial_state: RobotState, act_pre, global_path: list[Point2D]) -> list[Point2D]:
+    def calc_trajectory(self, initial_state: RobotState, act_pre, global_path: list[Point2D], show: bool) -> list[Point2D]:
         state = copy.deepcopy(initial_state)
         act = copy.deepcopy(act_pre)
         ans = [state.pos]
@@ -128,9 +143,10 @@ class MCMPC:
             act, predictive_path = self.calc_step(state, act, global_path, min(global_path_idx, len(global_path) - 1))
             state = self.model.step(state, act, self.config.act_config.dt)
             ans.append(state.pos)
-            if self._check_reach_point(state.pos, global_path, len(global_path) - 1):
+            if (state.pos - global_path[-1]).len() < 0.15:
                 break
-            self.field.plot_anime(ans[-min(20, len(ans)):-1], start_point, target_point, global_path, [tmp.pos for tmp in predictive_path])
+            if show:
+                self.field.plot_anime(ans[-min(20, len(ans)):-1], start_point, target_point, global_path, [tmp.pos for tmp in predictive_path])
         return ans
 
 
@@ -155,7 +171,7 @@ if __name__ == '__main__':
     field.plot_path(path_global, start_point, target_point, show=True)
 
     mcmpc = MCMPC(r_model, mcmpc_config, field)
-    final_path = mcmpc.calc_trajectory(init_state, V_Omega(0.0, 0.0), path_global)  # MCMPC
+    final_path = mcmpc.calc_trajectory(init_state, V_Omega(0.0, 0.0), path_global, False)  # MCMPC
     for tmp in final_path:
         print(tmp.x, tmp.y)
     field.plot_path(final_path, start_point, target_point, show=True)
