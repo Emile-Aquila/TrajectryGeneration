@@ -103,12 +103,7 @@ class RobotModel2(ABC):
         self._objects = objects
 
     def check_collision(self, state: RobotState2, obstacles: list[Object]) -> bool:
-        def calc_pos(pos_: Point2D, obj_: Object) -> Point2D:
-            new_pos = pos_ + Point2D(obj_.pos.x, obj_.pos.y, 0.0).rotate(pos_.theta)
-            new_pos.theta += obj_.pos.theta
-            return new_pos
-
-        tmp_objects = map(lambda x: x.change_pos(calc_pos(state.pos, x)), self._objects)
+        tmp_objects = self.get_objects(state)
         for obstacle in obstacles:
             for obj in tmp_objects:
                 if obj.check_collision(obstacle):
@@ -121,7 +116,12 @@ class RobotModel2(ABC):
             new_pos.theta += obj_.pos.theta
             return new_pos
 
-        return list(map(lambda x: x.change_pos(calc_pos(state.pos, x)), self._objects))
+        def generate_new_obj(obj: Object, pos: Point2D) -> Object:
+            ans = copy.deepcopy(obj)
+            ans.change_pos(pos)
+            return ans
+
+        return list(map(lambda x: generate_new_obj(x, calc_pos(state.pos, x)), self._objects))
 
     def plot(self, ax):
         for tmp in self._objects:

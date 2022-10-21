@@ -1,3 +1,4 @@
+import copy
 import itertools
 import numpy as np
 import math
@@ -44,7 +45,7 @@ class Point2D:  # x, y, theta
         return Point2D(x, y, self.theta)
 
     def __repr__(self):
-        return "("+str(self.x)+", "+str(self.y)+", "+str(self.theta)+")"
+        return "(" + str(self.x) + ", " + str(self.y) + ", " + str(self.theta) + ")"
 
     def len(self):
         return np.sqrt(self.x ** 2 + self.y ** 2)
@@ -93,7 +94,7 @@ class Object(ABC):
         pass
 
     @abstractmethod
-    def change_pos(self, new_pos: Point2D) -> None:  # 中心の位置を変更する
+    def change_pos(self, new_pos: Point2D):  # 中心の位置を変更する
         pass
 
 
@@ -102,16 +103,16 @@ class Circle(Object):
         super().__init__(Point2D(x, y, 0.0), fill, color)
         self.r = r
 
-    def check_collision(self, obstacle):
+    def check_collision(self, obstacle) -> bool:
         if type(obstacle) == Point2D:
             if self.fill:
                 return (self.pos - obstacle).len() <= self.r
             else:
                 return (self.pos - obstacle).len() == self.r
         elif type(obstacle) == Circle:
-            return (self.pos - obstacle.pos).len() <= self.r
+            return (self.pos - obstacle.pos).len() <= (self.r + obstacle.r)
         elif type(obstacle) == Rectangle:
-            for tmp in obstacle.vertex:
+            for tmp in obstacle.get_vertex():
                 if (tmp - self.pos).len() <= self.r:
                     return True
             rect1 = Rectangle(obstacle.pos.x, obstacle.pos.y, obstacle.w + self.r * 2.0, obstacle.h, obstacle.theta)
@@ -121,7 +122,7 @@ class Circle(Object):
             print("Error in check collision")
             return True
 
-    def check_collision_line_segment(self, point1, point2):
+    def check_collision_line_segment(self, point1: Point2D, point2: Point2D) -> bool:
         vec = point2 - point1
         max_dist = max((point2 - self.pos).len(), (point1 - self.pos).len())
         min_dist = np.abs((vec.cross(self.pos - point1)) / vec.len())
@@ -139,7 +140,7 @@ class Circle(Object):
                 return True
         return False
 
-    def calc_min_dist_point(self, point):  # pointとの最短距離を計算する
+    def calc_min_dist_point(self, point: Point2D) -> float:  # pointとの最短距離を計算する
         return max(abs((self.pos - point).len() - self.r), 0.0)
 
     def plot(self, ax):
@@ -148,7 +149,7 @@ class Circle(Object):
         ax.add_patch(c)
         ax.set_aspect("equal")
 
-    def change_pos(self, new_pos):  # 中心の位置を変更する
+    def change_pos(self, new_pos: Point2D) -> None:  # 中心の位置を変更する
         self.pos = new_pos
 
 
@@ -185,7 +186,7 @@ class Rectangle(Object):
         elif type(obstacle) == Circle:
             vertex = self.get_vertex()
             for i in range(len(vertex)):
-                if obstacle.check_collision_line_segment(vertex[i], vertex[(i+1) % len(vertex)]):
+                if obstacle.check_collision_line_segment(vertex[i], vertex[(i + 1) % len(vertex)]):
                     return True
             return False
         elif type(obstacle) == Rectangle:
@@ -196,7 +197,7 @@ class Rectangle(Object):
             print("Error in check collision")
             return True
 
-    def check_collision_line_segment(self, point1, point2):
+    def check_collision_line_segment(self, point1: Point2D, point2: Point2D) -> bool:
         def check_line_segment(point_a1, point_a2, point_b1, point_b2):  # 外積による線分同士の交差判定; Trueなら交差してる
             vec = point_a2 - point_a1
             if vec.cross(point_b1 - point_a1) * vec.cross(point_b2 - point_a1) > 0:
@@ -205,9 +206,10 @@ class Rectangle(Object):
             if vec.cross(point_a1 - point_b1) * vec.cross(point_a2 - point_b1) > 0:
                 return False
             return True
+
         vertex = self.get_vertex()
         for i in range(len(vertex)):
-            if check_line_segment(point1, point2, vertex[i], vertex[(i+1) % len(vertex)]):
+            if check_line_segment(point1, point2, vertex[i], vertex[(i + 1) % len(vertex)]):
                 return True
         return False
 
@@ -218,16 +220,16 @@ class Rectangle(Object):
         ax.add_patch(c)
         ax.set_aspect("equal")
 
-    def calc_min_dist_point(self, point):  # pointとの最短距離を計算する
+    def calc_min_dist_point(self, point: Point2D) -> float:  # pointとの最短距離を計算する
         vec = (point - self.pos).rotate(-self.theta)  # 回転した座標系でのcenterから見たpointの位置
         if np.abs(vec.x) <= self.w / 2.0:
             return max(abs(vec.y) - self.h / 2.0, 0.0)
         elif np.abs(vec.y) <= self.h / 2.0:
             return max(abs(vec.x) - self.w / 2.0, 0.0)
         else:
-            return min(map(lambda vert: (vert-point).len(), self.get_vertex()))
+            return min(map(lambda vert: (vert - point).len(), self.get_vertex()))
 
-    def change_pos(self, new_pos):  # 中心の位置を変更する
+    def change_pos(self, new_pos: Point2D) -> None:  # 中心の位置を変更する
         self.pos = new_pos
 
 
@@ -236,7 +238,7 @@ class Field:
         self.obstacles = []
         self.frame = Rectangle(w / 2.0, h / 2.0, w, h, 0.0, fill=True, color="black")
 
-    def check_collision(self, point):
+    def check_collision(self, point) -> bool:
         if not self.frame.check_collision(point):
             return True
         for obs in self.obstacles:
@@ -244,7 +246,7 @@ class Field:
                 return True
         return False
 
-    def check_collision_line_segment(self, point1, point2):
+    def check_collision_line_segment(self, point1: Point2D, point2: Point2D) -> bool:
         if not self.frame.check_collision(point1) or not self.frame.check_collision(point2):
             return True
         for obs in self.obstacles:
@@ -268,7 +270,7 @@ class Field:
         plt.show()
         return ax
 
-    def plot_path(self, path, start_point=None, target_point=None, ax=None, show=True):
+    def plot_path(self, path: list[Point2D], start_point=None, target_point=None, ax=None, show=True):
         if ax is None:
             ax = self.plot_field()
         if start_point is not None:
@@ -285,7 +287,7 @@ class Field:
             plt.show()
         return ax
 
-    def plot_path_control_point(self, path, ctrl_points=None, ax=None, show=True, lined=True):
+    def plot_path_control_point(self, path: list[Point2D], ctrl_points=None, ax=None, show=True, lined=True):
         if ax is None:
             ax = self.plot_field()
         if ctrl_points is not None:
