@@ -8,6 +8,7 @@ from typing import Any
 from A_star import A_star
 from concurrent.futures import ThreadPoolExecutor
 
+
 class MCMPC_Config:
     def __init__(self):
         self.act_config = V_Omega_Config(max_v=1.0, max_omega=90.0 * math.pi / 180.0,
@@ -16,10 +17,10 @@ class MCMPC_Config:
         self.vel_weight = [1.0, -0.05]
         self.d_vel_weight = [1.0, 1.0]
         self.predict_step_num = 8  # 1回の予測に用いるステップ数
-        self.iteration_num = 40  # 1回の制御周期あたりの予測計算の回数
+        self.iteration_num = 30  # 1回の制御周期あたりの予測計算の回数
 
-        self.num_trajectories_for_calc = 7
-        self.id_search_num = 5
+        self.num_trajectories_for_calc = 5
+        self.id_search_num = 7
 
         self.reach_dist = 0.3
 
@@ -37,7 +38,7 @@ class MCMPC:
     def _calc_nearest_index(self, point: Point2D, global_path: list[Point2D], start_index: int) -> int:
         min_dist = float("inf")
         if self._check_reach_point(point, global_path, start_index):
-            start_index = min(start_index+2, len(global_path)-1)
+            start_index = min(start_index + 2, len(global_path) - 1)
         min_idx = start_index
         for i in range(start_index, min(len(global_path), start_index + self.config.id_search_num)):
             if min_dist > (global_path[i] - point).len():
@@ -63,23 +64,18 @@ class MCMPC:
                 return -100.0 * len(traj)
         for stat in traj:
             if self.model.check_collision(stat, field.obstacles):
-                score -= 10.0
+                score -= 100.0
         ave_d_vel = np.sum(d_vels) * (1.0 / len(d_vels))
         ave_vel = np.sum(vels) * (1.0 / len(vels))
 
+        score += ave_vel.weighted_sum(self.config.vel_weight) * 0.01 * len(traj)
+        score -= ave_d_vel.weighted_sum(self.config.d_vel_weight) * 0.003 * len(traj)
         for i, tmp in enumerate(traj):
             path_id = min(self._calc_nearest_index(tmp.pos, global_path, global_path_idx), len(global_path) - 1)
-            score -= (global_path[path_id] - tmp.pos).len() * 0.4 / max(1, path_id-global_path_idx)
-            score -= ave_d_vel.weighted_sum(self.config.d_vel_weight) * 0.003
-            score += ave_vel.weighted_sum(self.config.vel_weight) * 0.01
+            score -= (global_path[path_id] - tmp.pos).len() * 0.4 / max(1, path_id - global_path_idx)
             if path_id > 0:
                 target_vec = global_path[path_id] - global_path[path_id - 1]
-                d_angle = tmp.pos.theta - math.atan2(target_vec.y, target_vec.x)
-                while d_angle > math.pi * 2.0 or d_angle <= 0.0:
-                    if d_angle > math.pi * 2.0:
-                        d_angle -= math.pi * 2.0
-                    else:
-                        d_angle += math.pi * 2.0
+                d_angle = abs(tmp.pos.theta - math.atan2(target_vec.y, target_vec.x)) % (math.pi * 2.0)
                 d_angle = min(abs(d_angle), math.pi * 2.0 - abs(d_angle))
                 score -= d_angle * 0.1
         return score
@@ -99,41 +95,26 @@ class MCMPC:
 
     def calc_step(self, state: RobotState, act_pre, global_path: list[Point2D], global_path_idx: int) \
             -> tuple[Any, list[RobotState]]:
-        trajectories = list[list[RobotState]]([])
-        actions = list[list[type(act_pre)]]([])
-        scores = list[tuple]([])
-
         def gen_traj(index):
-            traj, act = self._predict_trajectory(state, act_pre)
+            traj, acts = self._predict_trajectory(state, act_pre)
             score = self._eval_trajectory(state, traj, global_path, global_path_idx)
-            return [traj, act, score]
+            return score, traj, acts
 
-        with ThreadPoolExecutor(max_workers=10, thread_name_prefix="thread") as executor:
+        with ThreadPoolExecutor(max_workers=8, thread_name_prefix="thread") as executor:
             results = executor.map(gen_traj, range(self.config.iteration_num))
+        results = list(results)
 
-        for i, res in enumerate(results):
-            trajectories.append(res[0])
-            actions.append(res[1])
-            scores.append((res[2], i))
+        results.sort(key=lambda x: x[0])
+        results.reverse()
+        ans_scores = np.array([score for score, _, _ in results[0:self.config.num_trajectories_for_calc]])
+        ans_trajs_act = np.array([act[0] for _, _, act in results[0:self.config.num_trajectories_for_calc]])
+        exp_score_sum = np.sum(np.exp(ans_scores)) + 1e-20
+        ans_act = np.sum([act * np.exp(score) * (1.0 / exp_score_sum) for act, score in zip(ans_trajs_act, ans_scores)])
 
-        # for i in range(self.config.iteration_num):
-        #     traj, acts = self._predict_trajectory(state, act_pre)
-        #     actions.append(acts)
-        #     trajectories.append(traj)
+        return ans_act, results[0][1]
 
-        # for i, traj in enumerate(trajectories):
-        #     scores.append((self._eval_trajectory(state, traj, global_path, global_path_idx), i))
-        scores.sort()
-        scores.reverse()
-        ans_scores = np.array([score for score, _ in scores[0:self.config.num_trajectories_for_calc]])
-        ans_trajs_act = np.array([actions[i][0] for _, i in scores[0:self.config.num_trajectories_for_calc]])
-        exp_score_sum = np.sum(np.exp(ans_scores))
-        ans_act = np.sum(
-            [act * np.exp(score) * (1.0 / (exp_score_sum + 1e-20)) for act, score in zip(ans_trajs_act, ans_scores)])
-
-        return ans_act, trajectories[scores[0][1]]
-
-    def calc_trajectory(self, initial_state: RobotState, act_pre, global_path: list[Point2D], show: bool) -> list[Point2D]:
+    def calc_trajectory(self, initial_state: RobotState, act_pre, global_path: list[Point2D], show: bool) \
+            -> list[Point2D]:
         state = copy.deepcopy(initial_state)
         act = copy.deepcopy(act_pre)
         ans = [state.pos]
@@ -146,7 +127,8 @@ class MCMPC:
             if (state.pos - global_path[-1]).len() < 0.15:
                 break
             if show:
-                self.field.plot_anime(ans[-min(20, len(ans)):-1], start_point, target_point, global_path, [tmp.pos for tmp in predictive_path])
+                self.field.plot_anime(ans[-min(20, len(ans)):-1], start_point, target_point, global_path,
+                                      [tmp.pos for tmp in predictive_path])
         return ans
 
 
@@ -157,7 +139,8 @@ if __name__ == '__main__':
     start_point = Point2D(0.5, 0.5)
     target_point = Point2D(8.0, 8.0)
     r_model = Parallel_TwoWheel_Vehicle_Model([Circle(x=0.0, y=0.0, r=0.1)])
-    dist, path_global_pre = A_star(field, start_point, target_point, r_model, check_length=0.1, unit_dist=0.2, show=True)
+    dist, path_global_pre = A_star(field, start_point, target_point, r_model, check_length=0.1, unit_dist=0.2,
+                                   show=True)
 
     print(dist)
     path_global = path_global_pre
