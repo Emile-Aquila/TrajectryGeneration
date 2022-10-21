@@ -7,19 +7,21 @@ from models.DynamicsModel import V_Omega, V_Omega_Config, Parallel_TwoWheel_Vehi
 from typing import Any
 from A_star import A_star
 from concurrent.futures import ThreadPoolExecutor
+import time
+from operator import itemgetter
 
 
 class MCMPC_Config:
     def __init__(self):
         self.act_config = V_Omega_Config(max_v=1.0, max_omega=90.0 * math.pi / 180.0,
                                          max_d_v=8.0, max_d_omega=180.0 * math.pi / 180.0,
-                                         sigma_v=0.9, sigma_omega=90.0 * math.pi / 180.0 * 0.9, dt=0.1)
+                                         sigma_v=0.7, sigma_omega=90.0 * math.pi / 180.0 * 0.7, dt=0.12)
         self.vel_weight = [1.0, -0.05]
         self.d_vel_weight = [1.0, 1.0]
         self.predict_step_num = 8  # 1回の予測に用いるステップ数
-        self.iteration_num = 30  # 1回の制御周期あたりの予測計算の回数
+        self.iteration_num = 40  # 1回の制御周期あたりの予測計算の回数
 
-        self.num_trajectories_for_calc = 5
+        self.num_trajectories_for_calc = 3
         self.id_search_num = 7
 
         self.reach_dist = 0.3
@@ -72,7 +74,7 @@ class MCMPC:
         score -= ave_d_vel.weighted_sum(self.config.d_vel_weight) * 0.003 * len(traj)
         for i, tmp in enumerate(traj):
             path_id = min(self._calc_nearest_index(tmp.pos, global_path, global_path_idx), len(global_path) - 1)
-            score -= (global_path[path_id] - tmp.pos).len() * 0.4 / max(1, path_id - global_path_idx)
+            score -= (global_path[path_id] - tmp.pos).len() * 0.5 / max(1, path_id - global_path_idx)
             if path_id > 0:
                 target_vec = global_path[path_id] - global_path[path_id - 1]
                 d_angle = abs(tmp.pos.theta - math.atan2(target_vec.y, target_vec.x)) % (math.pi * 2.0)
@@ -98,20 +100,19 @@ class MCMPC:
         def gen_traj(index):
             traj, acts = self._predict_trajectory(state, act_pre)
             score = self._eval_trajectory(state, traj, global_path, global_path_idx)
-            return score, traj, acts
+            return [score, acts[0], traj]
 
         with ThreadPoolExecutor(max_workers=8, thread_name_prefix="thread") as executor:
             results = executor.map(gen_traj, range(self.config.iteration_num))
         results = list(results)
 
-        results.sort(key=lambda x: x[0])
+        results.sort(key=itemgetter(0))
         results.reverse()
-        ans_scores = np.array([score for score, _, _ in results[0:self.config.num_trajectories_for_calc]])
-        ans_trajs_act = np.array([act[0] for _, _, act in results[0:self.config.num_trajectories_for_calc]])
-        exp_score_sum = np.sum(np.exp(ans_scores)) + 1e-20
-        ans_act = np.sum([act * np.exp(score) * (1.0 / exp_score_sum) for act, score in zip(ans_trajs_act, ans_scores)])
+        results = np.array(results[:self.config.num_trajectories_for_calc])
 
-        return ans_act, results[0][1]
+        exp_scores = np.exp(results[:, 0].astype("float32"))
+        ans_act = np.average(results[:, 1], weights=exp_scores)
+        return ans_act, results[0][2]
 
     def calc_trajectory(self, initial_state: RobotState, act_pre, global_path: list[Point2D], show: bool) \
             -> list[Point2D]:
@@ -154,7 +155,7 @@ if __name__ == '__main__':
     field.plot_path(path_global, start_point, target_point, show=True)
 
     mcmpc = MCMPC(r_model, mcmpc_config, field)
+    start_time = time.process_time()
     final_path = mcmpc.calc_trajectory(init_state, V_Omega(0.0, 0.0), path_global, False)  # MCMPC
-    for tmp in final_path:
-        print(tmp.x, tmp.y)
+    print(time.process_time() - start_time)
     field.plot_path(final_path, start_point, target_point, show=True)

@@ -18,6 +18,9 @@ class V_Omega:
 
     __rmul__ = __mul__
 
+    def __truediv__(self, other: float):
+        return V_Omega(self.v / other, self.omega / other)
+
     def __sub__(self, other):
         return V_Omega(self.v - other.v, self.omega - other.omega)
 
@@ -73,3 +76,5 @@ class Parallel_TwoWheel_Vehicle_Model(RobotModel_with_Dynamics[V_Omega]):
         new_v = self._clip(np.random.normal(state_pre.vel.v, config.sigma_v), min_v, max_v)
         new_omega = self._clip(np.random.normal(state_pre.vel.omega, config.sigma_omega), min_omega, max_omega)
         return V_Omega(new_v, new_omega)
+
+
