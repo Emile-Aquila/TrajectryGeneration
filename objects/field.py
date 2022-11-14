@@ -4,8 +4,9 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from abc import ABC, ABCMeta, abstractmethod
 import sys
+import os
 
-sys.path.append('./')
+sys.path.append(os.path.dirname(__file__))
 from .Point2D import Point2D
 
 

@@ -3,11 +3,11 @@ import random
 import matplotlib.pyplot as plt
 import time
 import sys
+import os
 
-sys.path.append('./')
+sys.path.append(os.path.dirname(__file__))
 from objects.field import Field, Point2D, Circle, GenTestField
 from models.Robot_model import RobotModel, RobotState
-
 
 
 class RRT:

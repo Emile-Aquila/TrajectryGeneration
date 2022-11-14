@@ -6,8 +6,9 @@ from concurrent.futures import ThreadPoolExecutor
 import time
 from operator import itemgetter
 import sys
+import os
 
-sys.path.append('./')
+sys.path.append(os.path.dirname(__file__))
 from objects.field import Field, Circle, Point2D, GenTestField
 from models.Robot_model import RobotState, RobotModel_with_Dynamics
 from models.DynamicsModel import V_Omega, V_Omega_Config, Parallel_TwoWheel_Vehicle_Model

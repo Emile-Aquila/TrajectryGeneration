@@ -1,10 +1,11 @@
 import math
 import dataclasses
-import sys
 from objects.field import Point2D, Object
 import numpy as np
+import sys
+import os
 
-sys.path.append('../')
+sys.path.append(os.path.dirname(__file__))
 from .Robot_model import RobotState, RobotModel_with_Dynamics
 
 

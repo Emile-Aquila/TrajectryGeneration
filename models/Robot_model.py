@@ -3,8 +3,9 @@ from typing import Any, Generic, TypeVar
 from abc import ABC, abstractmethod
 import copy
 import sys
+import os
 
-sys.path.append('../')
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from objects.field import Point2D, Object
 
 VelType = TypeVar("VelType")
