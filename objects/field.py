@@ -3,7 +3,10 @@ import math
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from abc import ABC, ABCMeta, abstractmethod
-from objects.Point2D import Point2D
+import sys
+
+sys.path.append('./')
+from .Point2D import Point2D
 
 
 class Object(ABC):

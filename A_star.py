@@ -1,9 +1,12 @@
 import numpy as np
 import time
 import matplotlib.pyplot as plt
+import heapq
+import sys
+
+sys.path.append('./')
 from objects.field import Field, Circle, Point2D, GenTestField
 from models.Robot_model import RobotModel, RobotState
-import heapq
 
 
 def gen_motion_model(unit_dist: float) -> list[Point2D]:
@@ -63,7 +66,7 @@ def A_star(field: Field, start_point: Point2D, target_point: Point2D,
             terminate_point = point
             break
         for vec in motion_model:
-            if A_check_collision(point, point+vec):
+            if A_check_collision(point, point + vec):
                 continue
             new_node = (eval_func(point + vec, point), dist + vec.len(), point + vec, point)
             if (point + vec).getXY() not in checked_node:

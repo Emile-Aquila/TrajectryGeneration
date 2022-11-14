@@ -1,6 +1,9 @@
-from objects.Point2D import Point2D
 from scipy import interpolate
 import numpy as np
+import sys
+
+sys.path.append('../')
+from objects.Point2D import Point2D
 
 
 def spline(global_path: list[Point2D]) -> list[Point2D]:  # スプライン補間

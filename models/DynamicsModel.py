@@ -1,8 +1,11 @@
 import math
 import dataclasses
-from models.Robot_model import RobotState, RobotModel_with_Dynamics
+import sys
 from objects.field import Point2D, Object
 import numpy as np
+
+sys.path.append('../')
+from .Robot_model import RobotState, RobotModel_with_Dynamics
 
 
 @dataclasses.dataclass(frozen=True)
@@ -76,5 +79,3 @@ class Parallel_TwoWheel_Vehicle_Model(RobotModel_with_Dynamics[V_Omega]):
         new_v = self._clip(np.random.normal(state_pre.vel.v, config.sigma_v), min_v, max_v)
         new_omega = self._clip(np.random.normal(state_pre.vel.omega, config.sigma_omega), min_omega, max_omega)
         return V_Omega(new_v, new_omega)
-
-

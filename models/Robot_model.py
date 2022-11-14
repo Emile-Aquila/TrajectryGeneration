@@ -1,9 +1,11 @@
 import dataclasses
-from objects.field import Point2D, Object
 from typing import Any, Generic, TypeVar
 from abc import ABC, abstractmethod
 import copy
+import sys
 
+sys.path.append('../')
+from objects.field import Point2D, Object
 
 VelType = TypeVar("VelType")
 

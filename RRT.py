@@ -1,9 +1,14 @@
 import numpy as np
 import random
-from objects.field import Field, Point2D, Circle, GenTestField
-from models.Robot_model import RobotModel, RobotState
 import matplotlib.pyplot as plt
 import time
+import sys
+
+sys.path.append('./')
+from objects.field import Field, Point2D, Circle, GenTestField
+from models.Robot_model import RobotModel, RobotState
+
+
 
 class RRT:
     eps: float
@@ -57,8 +62,8 @@ class RRT:
                     or self.robot_model.check_collision(RobotState[None](new_node, None), self.field.obstacles):
                 return True
             unit_vec = (new_node - node_pre) * (1.0 / (new_node - node_pre).len())
-            for i in range(int((node_pre-new_node).len() // check_length)):
-                pos = node_pre+unit_vec*(i+1)*check_length
+            for i in range(int((node_pre - new_node).len() // check_length)):
+                pos = node_pre + unit_vec * (i + 1) * check_length
                 if self.robot_model.check_collision(RobotState[None](pos, None), self.field.obstacles):
                     return True
             return False
@@ -82,8 +87,9 @@ class RRT:
                     def f_total_dist(nod):  # 根からの距離
                         return self._get_dist(tree, nod, start_point) + (nod - new_node).len()
 
-                    pre_node = min(filter(lambda nod: not self._check_collision(nod, new_node, self.check_length), nodes)
-                                   , key=f_total_dist)
+                    pre_node = min(
+                        filter(lambda nod: not self._check_collision(nod, new_node, self.check_length), nodes)
+                        , key=f_total_dist)
                     self._reconnect_nodes(nodes, tree, new_node, f_total_dist(pre_node), start_point)
                     # ^ new_pointをnodes, treeに入れる前に使う事.
                     nodes.append(new_node)
@@ -114,7 +120,8 @@ class RRT:
 class RRT_star(RRT):
     R: float
 
-    def __init__(self, field: Field, robot_model: RobotModel | None, R: float, eps=1.0, goal_sample_rate=0.05, check_length=0.1):
+    def __init__(self, field: Field, robot_model: RobotModel | None, R: float, eps=1.0, goal_sample_rate=0.05,
+                 check_length=0.1):
         super().__init__(field, robot_model, eps, goal_sample_rate, check_length)
         self.R = R
 

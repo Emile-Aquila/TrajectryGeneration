@@ -1,14 +1,17 @@
 import numpy as np
 import math
 import copy
-from objects.field import Field, Circle, Point2D, GenTestField
-from models.Robot_model import RobotState, RobotModel_with_Dynamics
-from models.DynamicsModel import V_Omega, V_Omega_Config, Parallel_TwoWheel_Vehicle_Model
 from typing import Any
-from A_star import A_star
 from concurrent.futures import ThreadPoolExecutor
 import time
 from operator import itemgetter
+import sys
+
+sys.path.append('./')
+from objects.field import Field, Circle, Point2D, GenTestField
+from models.Robot_model import RobotState, RobotModel_with_Dynamics
+from models.DynamicsModel import V_Omega, V_Omega_Config, Parallel_TwoWheel_Vehicle_Model
+from A_star import A_star
 
 
 class MCMPC_Config:
