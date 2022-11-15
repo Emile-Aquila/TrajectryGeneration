@@ -6,8 +6,12 @@ import sys
 import os
 
 sys.path.append(os.path.dirname(__file__))
-from objects.field import Field, Point2D, Circle, GenTestField
-from models.Robot_model import RobotModel, RobotState
+try:
+    from .objects.field import Field, Point2D, Circle, GenTestField
+    from .models.Robot_model import RobotModel, RobotState
+except:
+    from objects.field import Field, Point2D, Circle, GenTestField
+    from models.Robot_model import RobotModel, RobotState
 
 
 class RRT:
