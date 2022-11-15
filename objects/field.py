@@ -178,9 +178,13 @@ class Rectangle(Object):
 
 
 class Field:
-    def __init__(self, w, h):
+    def __init__(self, w, h, center=False):
+        # center=Trueの時はフィールドの中心を原点にする。Falseの時は左下の角が原点
         self.obstacles = []
-        self.frame = Rectangle(w / 2.0, h / 2.0, w, h, 0.0, fill=True, color="black")
+        if center:
+            self.frame = Rectangle(0.0, 0.0, w, h, 0.0, fill=True, color="black")
+        else:
+            self.frame = Rectangle(w / 2.0, h / 2.0, w, h, 0.0, fill=True, color="black")
 
     def check_collision(self, point) -> bool:
         if not self.frame.check_collision(point):
