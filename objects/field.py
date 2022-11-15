@@ -128,11 +128,7 @@ class Rectangle(Object):
             else:
                 return np.abs(vec.x) == self.w / 2.0 and np.abs(vec.y) == self.h / 2.0
         elif type(obstacle) == Circle:
-            vertex = self.get_vertex()
-            for i in range(len(vertex)):
-                if obstacle.check_collision_line_segment(vertex[i], vertex[(i + 1) % len(vertex)]):
-                    return True
-            return False
+            return obstacle.check_collision(self)
         elif type(obstacle) == Rectangle:
             vertex_self = self.get_vertex()
             vertex_their = obstacle.get_vertex()
