@@ -84,7 +84,8 @@ class RRT:
                     return True
             return False
 
-    def planning(self, start_point: Point2D, target_point: Point2D, try_num=100, star=True, show=True):
+    def planning(self, start_point: Point2D, target_point: Point2D, try_num=100, star=True, show=True) \
+            -> (float | None, list[Point2D] | None, list[Point2D] | None):
         # star = Trueの時はRRT*
         tree = Tree(try_num + 2)
         tree.append(start_point, -1)
@@ -110,7 +111,7 @@ class RRT:
                 else:
                     tree.append(new_node, nearest_id)
         nearest_node, nearest_id = None, 0
-        dist_ids = sorted([((target_point - tree.nodes[i]).len()+tree.dists[i], i) for i in range(tree.size)],
+        dist_ids = sorted([((target_point - tree.nodes[i]).len() + tree.dists[i], i) for i in range(tree.size)],
                           key=operator.itemgetter(0))
         ans_dist = None
         for tmp_dist, node_id in dist_ids:
@@ -118,6 +119,8 @@ class RRT:
                 nearest_id = node_id
                 ans_dist = tmp_dist
                 break
+        if ans_dist is None:
+            return None, None, None
         ans_path = [target_point]
         tmp_id = nearest_id
         while tmp_id != -1:
