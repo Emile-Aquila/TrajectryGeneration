@@ -68,21 +68,13 @@ class Circle(Object):
 
     def check_collision_line_segment(self, point1: Point2D, point2: Point2D) -> bool:
         vec = point2 - point1
-        max_dist = max((point2 - self.pos).len(), (point1 - self.pos).len())
-        min_dist = np.abs((vec.cross(self.pos - point1)) / vec.len())
-        # TODO : 円と線分の距離の計算
-        if min_dist == self.r or max_dist == self.r:  # 円と線分が接する
-            return True
+        closest_point = point1 + vec.unit() * np.clip((self.pos-point1).dot(vec.unit()), 0.0, vec.len())
+        min_dist = (closest_point-self.pos).len()
         if self.fill:
-            if min_dist <= self.r:
-                if (self.pos - point2).dot(vec) * (self.pos - point1).dot(vec) < 0.0:
-                    return True
-                else:
-                    return False
-        if not self.fill:
-            if (min_dist < self.r) ^ (max_dist < self.r):  # xor. 交差しない事を判定
-                return True
-        return False
+            return min_dist <= self.r
+        else:
+            max_dist = max((point2 - self.pos).len(), (point1 - self.pos).len())
+            return (min_dist < self.r) ^ (max_dist < self.r)
 
     def calc_min_dist_point(self, point: Point2D) -> float:  # pointとの最短距離を計算する
         return max(abs((self.pos - point).len() - self.r), 0.0)

@@ -11,35 +11,40 @@ sys.path.append(os.path.dirname(__file__))
 try:
     from .objects.field import Field, Point2D, Circle, GenTestField
     from .models.Robot_model import RobotModel, RobotState
+    from .utils.utils import print_process_time
 except:
     from objects.field import Field, Point2D, Circle, GenTestField
     from models.Robot_model import RobotModel, RobotState
+    from utils.utils import print_process_time
 
 
 class Tree:
     nodes: list[Point2D | None]
     edges: list[(int, float)]  # 親の頂点, 辺の長さ
-    dists: list[float | None]
     size: int
 
     def __init__(self, NodeSize: int):
         self.nodes = [None] * (NodeSize + 10)
         self.edges = [None] * (NodeSize + 10)
-        self.dists = [None] * (NodeSize + 10)
         self.size = 0
 
     def append(self, point: Point2D, parent_id: int):
         self.nodes[self.size] = point
         if 0 <= parent_id < self.size:
             self.edges[self.size] = (parent_id, (self.nodes[parent_id] - point).len())
-            self.dists[self.size] = self.dists[parent_id] + self.edges[self.size][1]
             self.size += 1
         elif parent_id == -1:
             self.edges[self.size] = (parent_id, 0.0)
-            self.dists[self.size] = 0.0
             self.size += 1
         else:
             print("Tree ERROR")
+
+    def dist(self, node_id: int) -> float:
+        tmp_id, ans = node_id, 0.0
+        while tmp_id != -1:
+            tmp_id, edge_len = self.edges[tmp_id]
+            ans += edge_len
+        return ans
 
 
 class RRT:
@@ -62,14 +67,16 @@ class RRT:
         min_id = np.fromiter(map(lambda idx: (point - tree.nodes[idx]).len(), range(tree.size)), dtype=float).argmin()
         return min_id, tree.nodes[min_id]
 
-    def _reconnect_nodes(self, tree: Tree, new_node_id: int, dist_new_node: float, start_point: Point2D):
+    def _reconnect_nodes(self, tree: Tree, new_node_id: int, non_collision_ids: list[int], start_point: Point2D):
         # nodeの再接続.
         pass
 
+    def _find_neighborhood(self, tree: Tree, new_node: Point2D) -> list[int]:
+        # new_node付近の点の集合を求める
+        pass
+
     def _check_collision(self, node_pre: Point2D, new_node: Point2D, check_length: float) -> bool:
-        if self.field.check_collision(new_node):
-            return True
-        elif self.field.check_collision_line_segment(node_pre, new_node):
+        if self.field.check_collision_line_segment(node_pre, new_node):
             return True
         else:
             if self.robot_model is None:
@@ -101,17 +108,21 @@ class RRT:
             new_node = ((tmp_point - nearest_vert) * self.eps) + nearest_vert
             if not self._check_collision(nearest_vert, new_node, self.check_length):
                 if star:  # RRT* (reconnect)
-                    pre_node_id = min(
-                        filter(lambda idx: not self._check_collision(tree.nodes[idx], new_node, self.check_length),
-                               range(tree.size)), key=lambda idx: tree.dists[idx] + (tree.nodes[idx] - new_node).len()
-                    )
+                    neighborhood_ids = self._find_neighborhood(tree, new_node)  # 衝突なしの近傍
+                    if len(neighborhood_ids) == 0:
+                        neighborhood_ids = [nearest_id]
+
+                    pre_node_id = min(neighborhood_ids,
+                                      key=lambda idx: tree.dist(idx) + (tree.nodes[idx] - new_node).len()
+                                      )
+
                     tree.append(new_node, pre_node_id)
-                    pre_node_dist = tree.dists[pre_node_id] + (tree.nodes[pre_node_id] - new_node).len()
-                    self._reconnect_nodes(tree, tree.size - 1, pre_node_dist, start_point)
+                    self._reconnect_nodes(tree, tree.size - 1, neighborhood_ids, start_point)
                 else:
                     tree.append(new_node, nearest_id)
+
         nearest_node, nearest_id = None, 0
-        dist_ids = sorted([((target_point - tree.nodes[i]).len() + tree.dists[i], i) for i in range(tree.size)],
+        dist_ids = sorted([((target_point - tree.nodes[i]).len() + tree.dist(i), i) for i in range(tree.size)],
                           key=operator.itemgetter(0))
         ans_dist = None
         for tmp_dist, node_id in dist_ids:
@@ -143,22 +154,23 @@ class RRT_star(RRT):
         super().__init__(field, robot_model, eps, goal_sample_rate, check_length)
         self.R = R
 
-    def _reconnect_nodes(self, tree: Tree, new_node_id: int, dist_new_node: float, start_point: Point2D):
+    def _find_neighborhood(self, tree: Tree, new_node: Point2D) -> list[int]:
+        # r近傍にある衝突なしの点を計算する
         r = self.R * np.power(np.log(tree.size) / tree.size, 0.5)  # r = R{{log(N)/N}^(1/d))
-        new_node = tree.nodes[new_node_id]
         dists = np.fromiter(map(lambda idx: (new_node - tree.nodes[idx]).len(), range(tree.size)), dtype=float)
         r_neighbor = np.array(range(tree.size))[dists < r]
-        for node_id in r_neighbor:
-            if node_id == new_node_id:
-                continue
+
+        ans = list(
+            filter(lambda idx: not self._check_collision(tree.nodes[idx], new_node, self.check_length), r_neighbor))
+        return ans
+
+    def _reconnect_nodes(self, tree: Tree, new_node_id: int, non_collision_ids: list[int], start_point: Point2D):
+        new_node = tree.nodes[new_node_id]
+        for node_id in non_collision_ids:
             node = tree.nodes[node_id]
-            if self._check_collision(node, new_node, self.check_length):
-                continue
-            tmp_dist = dist_new_node + (node - new_node).len()
-            if tree.dists[node_id] > tmp_dist:
+            tmp_dist = tree.dist(new_node_id) + (node - new_node).len()
+            if tree.dist(node_id) > tmp_dist:
                 tree.edges[node_id] = (new_node_id, (node - new_node).len())
-                tree.dists[node_id] = tmp_dist
-                # tree[node.getXY()] = (new_node, tmp_dist)
 
 
 if __name__ == '__main__':
@@ -171,9 +183,8 @@ if __name__ == '__main__':
 
     start_time = time.process_time()
     # rrt = RRT(field, None, eps=0.15, goal_sample_rate=0.05, check_length=0.1)  # RRT*
-    rrt = RRT_star(field, None, R=1.0, eps=0.15, goal_sample_rate=0.05, check_length=0.1)  # RRT*
+    rrt = RRT_star(field, None, R=15.0, eps=0.2, goal_sample_rate=0.05)  # RRT*
     dist, path, _ = rrt.planning(start_pt, target_pt, 200, show=False)
-    print(time.process_time() - start_time)
-
-    print(dist)
+    time_all = time.process_time() - start_time
+    print(time_all)
     field.plot_path(path, start_pt, target_pt, show=True)

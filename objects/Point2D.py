@@ -1,6 +1,6 @@
 import numpy as np
 from functools import total_ordering
-
+import copy
 
 @total_ordering
 class Point2D:  # x, y, theta
@@ -38,6 +38,8 @@ class Point2D:  # x, y, theta
         y = self.y * other
         return Point2D(x, y, self.theta)
 
+    __rmul__ = __mul__
+
     def __repr__(self):
         return "(" + str(self.x) + ", " + str(self.y) + ", " + str(self.theta) + ")"
 
@@ -48,6 +50,9 @@ class Point2D:  # x, y, theta
         x = self.x * np.cos(theta2) - self.y * np.sin(theta2)
         y = self.x * np.sin(theta2) + self.y * np.cos(theta2)
         return Point2D(x, y, theta2 + self.theta)
+
+    def unit(self):
+        return copy.deepcopy(self) * (1.0 / self.len())
 
     def getXY(self):
         return self.x, self.y
