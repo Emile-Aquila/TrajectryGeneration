@@ -143,30 +143,19 @@ if __name__ == '__main__':
     field = GenTestField(0)
     field.plot_field()
 
-    start_point = Point2D(0.5, 0.5)
-    target_point = Point2D(8.0, 8.0)
-    # r_model = Parallel_TwoWheel_Vehicle_Model(
-    #     [Circle(x=0.0, y=0.0, r=0.1)]
-    # )
+    start_point, target_point = Point2D(0.5, 0.5), Point2D(8.0, 8.0)
     r_model = Parallel_TwoWheel_Vehicle_Model(
         [Rectangle(x=0.0, y=0.0, w=0.3, h=0.6, theta=math.pi/2.0)]
     )
-    dist, path_global_pre = A_star(field, start_point, target_point, r_model, check_length=0.1, unit_dist=0.2,
-                                   show=True)
-
-    print(dist)
-    path_global = path_global_pre
-    path_global.append(path_global_pre[-1])
+    dist, path_global = A_star(field, start_point, target_point, r_model, check_length=0.1, unit_dist=0.2,show=True)
     field.plot_path(path_global, start_point, target_point, show=True)
 
     mcmpc_config = MCMPC_Config()
     init_state = RobotState(Point2D(start_point.x, start_point.y, math.pi / 2.0), V_Omega(0.0, 0.0))
-
-    # path_glob = spline(path_global) # スプライン補間
-    field.plot_path(path_global, start_point, target_point, show=True)
-
     mcmpc = MCMPC(r_model, mcmpc_config, field)
+
     start_time = time.process_time()
-    final_path = mcmpc.calc_trajectory(init_state, V_Omega(0.0, 0.0), path_global, True)  # MCMPC
+    final_path = mcmpc.calc_trajectory(init_state, V_Omega(0.0, 0.0), path_global, False)  # MCMPC
     print(time.process_time() - start_time)
+
     field.plot_path(final_path, start_point, target_point, show=True)
