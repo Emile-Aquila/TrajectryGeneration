@@ -68,8 +68,8 @@ class Circle(Object):
 
     def check_collision_line_segment(self, point1: Point2D, point2: Point2D) -> bool:
         vec = point2 - point1
-        closest_point = point1 + vec.unit() * np.clip((self.pos-point1).dot(vec.unit()), 0.0, vec.len())
-        min_dist = (closest_point-self.pos).len()
+        closest_point = point1 + vec.unit() * np.clip((self.pos - point1).dot(vec.unit()), 0.0, vec.len())
+        min_dist = (closest_point - self.pos).len()
         if self.fill:
             return min_dist <= self.r
         else:
@@ -91,28 +91,29 @@ class Circle(Object):
 
 class Rectangle(Object):
     def __init__(self, x, y, w, h, theta, fill=True, color="black", obstacle=True):  # 横w, 縦h, 角度thetaの長方形
-        super().__init__(Point2D(x, y, theta), fill, color)
-        self.theta = theta
-        self.w = w
-        self.h = h
+        super().__init__(Point2D(x, y, 0.0), fill, color)
+        self.theta: float = theta  # ここでのthetaは四角形のobject座標の原点に対する傾き。object座標の傾きはpos.theta
+        self.w: float = w
+        self.h: float = h
         self.obstacle = obstacle
-        self._vertex = [
+        self._vertex: list[Point2D] = [
             Point2D(w / 2.0, h / 2.0),
             Point2D(-w / 2.0, h / 2.0),
             Point2D(-w / 2.0, -h / 2.0),
             Point2D(w / 2.0, -h / 2.0),
         ]
+        self._cache_vertex: list[Point2D] = list(self._change_coordinate(self.pos, self._vertex))
 
     def _change_coordinate(self, pos, vertex: list[Point2D]) -> iter:
         return iter(map(lambda x: x.rotate(pos.theta) + pos, vertex))
 
     def get_vertex(self):
-        return list(self._change_coordinate(self.pos, self._vertex))
+        return self._cache_vertex
+        # return list(self._change_coordinate(self.pos, self._vertex))
 
     def check_collision(self, obstacle) -> bool:
         if not self.obstacle:
             return False
-
         if type(obstacle) == Point2D:
             vec = (obstacle - self.pos).rotate(-self.theta)
             if self.fill:
@@ -124,10 +125,11 @@ class Rectangle(Object):
         elif type(obstacle) == Rectangle:
             vertex_self = self.get_vertex()
             vertex_their = obstacle.get_vertex()
-            return self.check_collision(vertex_their) or obstacle.check_collision(vertex_self)
+            return bool(sum([self.check_collision(vert) for vert in vertex_their])
+                        + sum([obstacle.check_collision(vert) for vert in vertex_self]))
         else:
-            print("Error in check collision")
-            return True
+            # print("Error in check collision [Rectangle]", obstacle)
+            raise Exception("unknown obstacle, {}".format(type(obstacle)))
 
     def check_collision_line_segment(self, point1: Point2D, point2: Point2D) -> bool:
         def check_line_segment(point_a1, point_a2, point_b1, point_b2):  # 外積による線分同士の交差判定; Trueなら交差してる
@@ -146,8 +148,9 @@ class Rectangle(Object):
         return False
 
     def plot(self, ax, non_fill=False):
-        vec = Point2D(-self.w / 2.0, -self.h / 2.0).rotate(self.theta) + self.pos
-        c = patches.Rectangle(xy=(vec.x, vec.y), width=self.w, height=self.h, angle=math.degrees(self.theta),
+        theta = self.theta + self.pos.theta
+        vec = Point2D(-self.w / 2.0, -self.h / 2.0).rotate(theta) + self.pos
+        c = patches.Rectangle(xy=(vec.x, vec.y), width=self.w, height=self.h, angle=math.degrees(theta),
                               fill=(self.fill and (not non_fill)), fc=self.color, ec=self.color)
         ax.add_patch(c)
         ax.set_aspect("equal")
@@ -163,6 +166,7 @@ class Rectangle(Object):
 
     def change_pos(self, new_pos: Point2D) -> None:  # 中心の位置を変更する
         self.pos = new_pos
+        self._cache_vertex = list(self._change_coordinate(self.pos, self._vertex))
 
 
 class Field:
@@ -243,7 +247,8 @@ class Field:
             plt.show()
         return ax
 
-    def plot_anime(self, path, start_point, target_point, global_path=None, predict_trajectory=None):
+    def plot_anime(self, path, start_point, target_point, global_path=None, predict_trajectory=None,
+                   model: list[Object] | None=None):
         ax = plt.axes()
         plt.axis("off")
         ax.axis("off")
@@ -267,7 +272,9 @@ class Field:
             p1, p2 = path[i].getXY(), path[i + 1].getXY()
             ax.plot([p1[0], p2[0]], [p1[1], p2[1]], color="red")
         ax.plot(path[-1].x, path[-1].y, color="red", marker="x", markersize=8.0)
-
+        if model is not None:
+            for obs in model:
+                obs.plot(ax)
         ax.set_aspect('equal')
         plt.draw()
         plt.pause(0.001)
@@ -318,4 +325,3 @@ def GenTestField(num: int):
         field.add_obstacle(Circle(6.2, 6.0, 0.25 + 0.15, True))
         return field
     return Field(12, 12)
-

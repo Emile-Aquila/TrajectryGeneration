@@ -9,7 +9,7 @@ import sys
 import os
 
 sys.path.append(os.path.dirname(__file__))
-from objects.field import Field, Circle, Point2D, GenTestField
+from objects.field import Field, Circle, Point2D, GenTestField, Rectangle
 from models.Robot_model import RobotState, RobotModel_with_Dynamics
 from models.DynamicsModel import V_Omega, V_Omega_Config, Parallel_TwoWheel_Vehicle_Model
 from A_star import A_star
@@ -124,16 +124,18 @@ class MCMPC:
         act = copy.deepcopy(act_pre)
         ans = [state.pos]
         global_path_idx = 0
-        for _ in range(1000):
+        for i in range(1000):
             global_path_idx = self._calc_nearest_index(state.pos, global_path, global_path_idx)
             act, predictive_path = self.calc_step(state, act, global_path, min(global_path_idx, len(global_path) - 1))
             state = self.model.step(state, act, self.config.act_config.dt)
             ans.append(state.pos)
             if (state.pos - global_path[-1]).len() < 0.15:
                 break
-            if show:
-                self.field.plot_anime(ans[-min(20, len(ans)):-1], start_point, target_point, global_path,
-                                      [tmp.pos for tmp in predictive_path])
+            if show and (i % 2 == 0):
+                # self.field.plot_anime(ans[-min(20, len(ans)):-1], start_point, target_point, global_path,
+                #                       [tmp.pos for tmp in predictive_path], model=self.model.get_objects(state))
+                self.field.plot_anime(ans, start_point, target_point, global_path,
+                                      [tmp.pos for tmp in predictive_path], model=self.model.get_objects(state))
         return ans
 
 
@@ -143,7 +145,12 @@ if __name__ == '__main__':
 
     start_point = Point2D(0.5, 0.5)
     target_point = Point2D(8.0, 8.0)
-    r_model = Parallel_TwoWheel_Vehicle_Model([Circle(x=0.0, y=0.0, r=0.1)])
+    # r_model = Parallel_TwoWheel_Vehicle_Model(
+    #     [Circle(x=0.0, y=0.0, r=0.1)]
+    # )
+    r_model = Parallel_TwoWheel_Vehicle_Model(
+        [Rectangle(x=0.0, y=0.0, w=0.3, h=0.6, theta=math.pi/2.0)]
+    )
     dist, path_global_pre = A_star(field, start_point, target_point, r_model, check_length=0.1, unit_dist=0.2,
                                    show=True)
 
@@ -160,6 +167,6 @@ if __name__ == '__main__':
 
     mcmpc = MCMPC(r_model, mcmpc_config, field)
     start_time = time.process_time()
-    final_path = mcmpc.calc_trajectory(init_state, V_Omega(0.0, 0.0), path_global, False)  # MCMPC
+    final_path = mcmpc.calc_trajectory(init_state, V_Omega(0.0, 0.0), path_global, True)  # MCMPC
     print(time.process_time() - start_time)
     field.plot_path(final_path, start_point, target_point, show=True)

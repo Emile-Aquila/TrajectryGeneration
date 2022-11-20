@@ -33,16 +33,15 @@ class RobotModel(ABC):
 
     def get_objects(self, state: RobotState) -> list[Object]:
         def calc_pos(pos_: Point2D, obj_: Object) -> Point2D:
-            new_pos = pos_ + Point2D(obj_.pos.x, obj_.pos.y, 0.0).rotate(pos_.theta)
-            new_pos.theta += obj_.pos.theta
+            new_pos = obj_.pos.rotate(pos_.theta) + Point2D(pos_.x, pos_.y, 0.0)
             return new_pos
 
         def generate_new_obj(obj: Object, pos: Point2D) -> Object:
             ans = copy.deepcopy(obj)
-            ans.change_pos(pos)
+            ans.change_pos(pos+ans.pos)
             return ans
 
-        return list(map(lambda x: generate_new_obj(x, calc_pos(state.pos, x)), self._objects))
+        return list(map(lambda x: generate_new_obj(x, state.pos), self._objects))
 
     def plot(self, ax):
         for tmp in self._objects:
