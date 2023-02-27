@@ -103,5 +103,5 @@ if __name__ == '__main__':
         print("{{{}, {}, {}}},".format(point.x, point.y, point.theta))
     print(len(path))
 
-    path_glob = spline(pointss)
-    field.plot_path_control_point(path_glob, pointss, show=True)
+    # path_glob = spline(pointss)
+    # field.plot_path_control_point(path_glob, pointss, show=True)
