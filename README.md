@@ -1,6 +1,8 @@
 # TrajectryGeneration
 
-Pythonによる経路生成ライブラリ
+Pythonによる経路生成ライブラリ。
+
+2次元空間における経路のみに対応。
 
 ## Algorithms
 実装済みのアルゴリズム 
@@ -32,5 +34,7 @@ Pythonによる経路生成ライブラリ
 <img src=".readme/clothoid.png" width="60%">
 
 
-## Object
+## Object/Field
 フィールドや機体などの図形オブジェクトについては、長方形と円のみ実装。
+
+NHKロボコン2022のフィールドも実装済み。
